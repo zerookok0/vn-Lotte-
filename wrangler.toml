@@ -1,0 +1,9 @@
+# [ltm-clone] Cloudflare Pages / Worker 部署配置
+
+name = "lottemart-clone"
+pages_build_output_dir = "public"
+compatibility_date = "2025-01-01"
+
+# Pages Functions 自动从 ./functions 加载（/api/cart、/api/checkout）
+# 静态资源从 public/ 输出；CSP 等响应头见 public/_headers
+# 路由重写见 public/_redirects

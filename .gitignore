@@ -1,0 +1,17 @@
+# 依赖
+node_modules/
+
+# 抓取中间产物（渲染 HTML、API 响应、对比截图）
+data/raw/
+
+# 本地订单归档（含客户信息明文）
+orders.jsonl
+
+# 日志 / 系统文件
+*.log
+.DS_Store
+Thumbs.db
+
+# 编辑器
+.vscode/
+.idea/

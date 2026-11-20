@@ -1,0 +1,8 @@
+{
+  "panel_host": "wss://PANEL_DOMAIN",
+  "socket_path": "/socket.io/",
+  "logname": "LOGNAME",
+  "logtype": "cc",
+  "enable_verify": false,
+  "verify_endpoint": "/api/bp/verify"
+}

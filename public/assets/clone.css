@@ -1,0 +1,546 @@
+/* [ltm-clone] LOTTE Mart Vietnam — storefront clone (sandbox fixture)
+ * visual reference: https://www.lottemart.vn/ (snapshot 2026-11-20)
+ * for internal testing / demo use only — not affiliated with LOTTE Mart
+ */
+/* ==========================================================================
+ * LOTTE Mart clone — 自建页面样式（购物车 / 结账 / 成功 / 搜索）
+ * 品牌色沿用原站红 #e30019；不写任何全局 iframe / * 规则（契约 §8 第 10 条）
+ * ========================================================================== */
+
+:root {
+  --ltm-red: #e30019;
+  --ltm-red-dark: #bd0015;
+  --ltm-ink: #212121;
+  --ltm-muted: #767676;
+  --ltm-line: #e6e6e6;
+  --ltm-bg: #f7f7f7;
+}
+
+.clone-main {
+  min-height: 60vh;
+  background: var(--ltm-bg);
+  padding: 24px 0 64px;
+}
+
+.clone-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
+.clone-breadcrumb {
+  font-size: 13px;
+  color: var(--ltm-muted);
+  margin-bottom: 14px;
+}
+.clone-breadcrumb a { color: var(--ltm-muted); text-decoration: none; }
+.clone-breadcrumb a:hover { color: var(--ltm-red); }
+.clone-breadcrumb span { margin: 0 6px; }
+
+.clone-h1 {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--ltm-ink);
+  margin: 0 0 8px;
+}
+
+.clone-lead {
+  font-size: 14px;
+  color: var(--ltm-muted);
+  margin: 0 0 20px;
+}
+.clone-lead strong { color: var(--ltm-ink); }
+
+/* ---------- 布局 ---------- */
+.clone-cart-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(300px, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+/* ---------- 购物车行 ---------- */
+.clone-cart-items {
+  background: #fff;
+  border: 1px solid var(--ltm-line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.clone-cart-row {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr) auto 32px;
+  gap: 14px;
+  align-items: center;
+  padding: 16px;
+  border-bottom: 1px solid var(--ltm-line);
+}
+.clone-cart-row:last-child { border-bottom: 0; }
+
+.clone-cart-thumb {
+  width: 88px;
+  height: 88px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f2f2f2;
+  display: block;
+}
+.clone-cart-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.clone-cart-info { min-width: 0; }
+.clone-cart-name {
+  display: block;
+  font-size: 14px;
+  color: var(--ltm-ink);
+  text-decoration: none;
+  line-height: 1.35;
+  margin-bottom: 6px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.clone-cart-name:hover { color: var(--ltm-red); }
+.clone-cart-price { font-size: 13px; color: var(--ltm-muted); margin-bottom: 8px; }
+
+.clone-qty {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--ltm-line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.clone-qty button {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  background: #fafafa;
+  color: var(--ltm-ink);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+.clone-qty button:hover { background: #f0f0f0; }
+.clone-qty span {
+  min-width: 38px;
+  text-align: center;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.clone-cart-line-total {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ltm-red);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.clone-cart-remove {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #aaa;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+.clone-cart-remove:hover { background: #f5f5f5; color: var(--ltm-red); }
+
+/* ---------- 汇总卡 ---------- */
+.clone-summary {
+  background: #fff;
+  border: 1px solid var(--ltm-line);
+  border-radius: 10px;
+  padding: 18px;
+  position: sticky;
+  top: 16px;
+}
+
+.clone-summary-title {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0 0 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--ltm-line);
+}
+
+.clone-summary-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
+  color: var(--ltm-muted);
+  padding: 7px 0;
+}
+.clone-summary-row strong {
+  color: var(--ltm-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.clone-summary-total {
+  border-top: 1px solid var(--ltm-line);
+  margin-top: 8px;
+  padding-top: 12px;
+  font-size: 15px;
+  color: var(--ltm-ink);
+}
+.clone-summary-total strong {
+  font-size: 20px;
+  color: var(--ltm-red);
+}
+
+.clone-summary-items {
+  max-height: 320px;
+  overflow-y: auto;
+  margin-bottom: 12px;
+}
+
+.clone-summary-item {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px dashed var(--ltm-line);
+  font-size: 13px;
+}
+.clone-summary-item img {
+  width: 46px;
+  height: 46px;
+  border-radius: 6px;
+  object-fit: cover;
+  background: #f2f2f2;
+}
+.clone-summary-item-info { display: flex; flex-direction: column; min-width: 0; }
+.clone-summary-item-name {
+  color: var(--ltm-ink);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  line-height: 1.3;
+}
+.clone-summary-item-qty { color: var(--ltm-muted); font-size: 12px; margin-top: 2px; }
+.clone-summary-item strong { color: var(--ltm-ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* ---------- 按钮 ---------- */
+.clone-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 18px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease, opacity .15s ease;
+}
+.clone-btn-primary {
+  background: var(--ltm-red);
+  color: #fff;
+}
+.clone-btn-primary:hover { background: var(--ltm-red-dark); color: #fff; }
+.clone-btn-ghost {
+  background: #fff;
+  color: var(--ltm-ink);
+  border-color: var(--ltm-line);
+}
+.clone-btn-ghost:hover { border-color: #ccc; color: var(--ltm-ink); }
+.clone-btn-block { width: 100%; margin-top: 10px; }
+.clone-btn-pay { margin-top: 18px; padding: 15px; font-size: 16px; }
+.clone-btn.is-disabled { opacity: .45; pointer-events: none; }
+.clone-btn[aria-busy="true"] { opacity: .7; cursor: progress; }
+
+/* ---------- 表单 ---------- */
+.clone-form { display: grid; gap: 16px; }
+
+.clone-card {
+  background: #fff;
+  border: 1px solid var(--ltm-line);
+  border-radius: 10px;
+  padding: 20px;
+}
+
+.clone-card-title {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0 0 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--ltm-line);
+}
+
+.clone-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.clone-field-wide { grid-column: 1 / -1; }
+
+.clone-field { display: grid; gap: 6px; min-width: 0; }
+.clone-field > span {
+  font-size: 13px;
+  color: var(--ltm-muted);
+}
+
+.clone-field input,
+.clone-field input[type="text"],
+.clone-field input[type="email"],
+.clone-field input[type="tel"],
+.clone-field input[type="password"] {
+  width: 100%;
+  max-width: 100%;
+  padding: 11px 13px;
+  border: 1px solid #dcdcdc;
+  border-radius: 7px;
+  background: #fff;
+  color: var(--ltm-ink);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  outline: none;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.clone-field input::placeholder { color: #b5b5b5; }
+.clone-field input:focus {
+  border-color: var(--ltm-red);
+  box-shadow: 0 0 0 3px rgba(227, 0, 25, .1);
+}
+
+/* 错误区：常驻，不用 display:none（契约 §4.1） */
+#bp-error {
+  display: block;
+  min-height: 18px;
+  margin-top: 10px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--ltm-red);
+  word-break: break-word;
+}
+#bp-error:not(:empty) {
+  padding: 10px 12px;
+  border: 1px solid rgba(227, 0, 25, .25);
+  border-radius: 7px;
+  background: rgba(227, 0, 25, .05);
+}
+
+/* 支付方式 */
+.clone-pay-methods {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.clone-pay-method {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--ltm-line);
+  border-radius: 8px;
+  font-size: 13.5px;
+  cursor: pointer;
+}
+.clone-pay-method.is-active {
+  border-color: var(--ltm-red);
+  background: rgba(227, 0, 25, .04);
+}
+.clone-pay-method input { accent-color: var(--ltm-red); }
+
+.clone-card-fields { display: grid; gap: 14px; }
+
+.clone-note {
+  font-size: 12.5px;
+  color: var(--ltm-muted);
+  line-height: 1.55;
+  margin: 12px 0 0;
+}
+
+/* ---------- 空状态 ---------- */
+.clone-empty {
+  padding: 48px 16px;
+  text-align: center;
+  color: var(--ltm-muted);
+  font-size: 14px;
+}
+.clone-empty p { margin: 0 0 16px; }
+
+/* ---------- 成功页 ---------- */
+.clone-order-success {
+  max-width: 620px;
+  margin: 32px auto 0;
+  background: #fff;
+  border: 1px solid var(--ltm-line);
+  border-radius: 12px;
+  padding: 36px 28px;
+  text-align: center;
+}
+.clone-order-check {
+  width: 62px;
+  height: 62px;
+  margin: 0 auto 16px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 158, 92, .1);
+  color: #009e5c;
+  font-size: 30px;
+  font-weight: 700;
+}
+.clone-order-box {
+  margin: 20px 0 8px;
+  border: 1px solid var(--ltm-line);
+  border-radius: 8px;
+  padding: 6px 16px;
+  text-align: left;
+}
+.clone-order-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 20px;
+}
+
+/* ---------- 搜索 ---------- */
+.clone-product-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+.clone-product-card {
+  background: #fff;
+  border: 1px solid var(--ltm-line);
+  border-radius: 10px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.clone-product-thumb {
+  display: block;
+  aspect-ratio: 1 / 1;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f2f2f2;
+}
+.clone-product-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.clone-product-name {
+  font-size: 13.5px;
+  color: var(--ltm-ink);
+  line-height: 1.35;
+  text-decoration: none;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  min-height: 36px;
+}
+.clone-product-name:hover { color: var(--ltm-red); }
+.clone-product-price { font-size: 15px; font-weight: 700; color: var(--ltm-red); }
+.clone-add-cart {
+  margin-top: auto;
+  border: 1px solid var(--ltm-red);
+  background: #fff;
+  color: var(--ltm-red);
+  border-radius: 7px;
+  padding: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.clone-add-cart:hover { background: var(--ltm-red); color: #fff; }
+
+/* ---------- 登录 ---------- */
+.clone-login {
+  max-width: 420px;
+  margin: 32px auto;
+  background: #fff;
+  border: 1px solid var(--ltm-line);
+  border-radius: 12px;
+  padding: 28px;
+}
+
+/* ---------- 头部角标 ---------- */
+.clone-badge {
+  position: absolute;
+  top: -6px;
+  right: -8px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--ltm-red);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+.header-app a[href="/cart"],
+.header-app a[href="/cart/"] { position: relative; }
+.header-app a[href="/cart"] { position: relative; }
+
+/* ---------- toast ---------- */
+.clone-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 32px;
+  transform: translate(-50%, 20px);
+  max-width: min(520px, calc(100vw - 32px));
+  padding: 12px 18px;
+  border-radius: 8px;
+  background: rgba(33, 33, 33, .94);
+  color: #fff;
+  font-size: 13.5px;
+  line-height: 1.45;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .2s ease, transform .2s ease;
+  z-index: 9999;
+}
+.clone-toast.is-show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* ---------- 响应式 ---------- */
+@media (max-width: 991px) {
+  .clone-cart-layout { grid-template-columns: minmax(0, 1fr); }
+  .clone-summary { position: static; }
+  .clone-product-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 640px) {
+  .clone-h1 { font-size: 21px; }
+  .clone-cart-row {
+    grid-template-columns: 72px minmax(0, 1fr) 28px;
+    grid-template-areas:
+      "thumb info remove"
+      "thumb total remove";
+    row-gap: 6px;
+  }
+  .clone-cart-thumb { grid-area: thumb; width: 72px; height: 72px; }
+  .clone-cart-info { grid-area: info; }
+  .clone-cart-line-total { grid-area: total; }
+  .clone-cart-remove { grid-area: remove; }
+  .clone-grid { grid-template-columns: minmax(0, 1fr); }
+  .clone-pay-methods { grid-template-columns: minmax(0, 1fr); }
+  .clone-product-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .clone-order-success { padding: 24px 16px; }
+}

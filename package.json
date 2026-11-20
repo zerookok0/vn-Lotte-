@@ -1,0 +1,18 @@
+{
+  "name": "aurora-supply",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Aurora Supply — static storefront + Node reference server (checkout fixture)",
+  "scripts": {
+    "dev": "node server.mjs",
+    "start": "node server.mjs",
+    "verify": "node scripts/verify.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "playwright-core": "^1.65.1"
+  }
+}
