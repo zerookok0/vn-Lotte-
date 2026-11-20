@@ -1,6 +1,8 @@
 # Cloudflare Pages 路由重写（200 = 内部重写，地址栏与 query 都保留）
-/vi-nsg/category/*   /category.html   200
-/vi-nsg/product/*    /product.html    200
+#
+# 注意：/vi-nsg/product/* 与 /vi-nsg/category/* 不要写通配规则 ——
+# 每个商品/分类都有真实目录页（public/vi-nsg/product/<slug>/index.html），
+# 通配会把这些真实页面覆盖掉。
 /cart                /cart.html       200
 /checkout            /checkout.html   200
 /order/*             /order.html      200

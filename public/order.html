@@ -1,6 +1,92 @@
 <!doctype html>
 <html lang="vi">
 <head>
+<script>
+/* [ltm-clone] 契约 §3 ①②：UTM 捕获 + 购物车骨架（构建时内联，不依赖服务端注入）
+   同步执行，必须排在 /bp/connector.js 之前。购物车从 cookie 还原，
+   这样 connector 第一次 getCart() 就能拿到正确金额。 */
+(function () {
+  var K = ['utm_source','utm_medium','utm_campaign','utm_term','utm_content','utm_id',
+           'fbclid','ttclid','gclid','adset_id','campaign_id','sub1','sub2','sub3','sub4','sub5'];
+
+  function cookie(name) {
+    var m = document.cookie.match(new RegExp('(?:^|;\\s*)' + name + '=([^;]+)'));
+    return m ? decodeURIComponent(m[1]) : '';
+  }
+  function grab(q) {
+    var o = {}, p = (q || '').replace(/^\?/, '').split('&');
+    for (var i = 0; i < p.length; i++) {
+      var kv = p[i].split('=');
+      if (kv.length < 2) continue;
+      try {
+        var k = decodeURIComponent(kv[0]);
+        if (K.indexOf(k) !== -1) o[k] = decodeURIComponent(kv.slice(1).join('='));
+      } catch (e) {}
+    }
+    return o;
+  }
+  function loadUTM() {
+    try { return JSON.parse(sessionStorage.getItem('bp_utm') || '{}'); } catch (e) { return {}; }
+  }
+  function utmSave(o) {
+    try { sessionStorage.setItem('bp_utm', JSON.stringify(o)); } catch (e) {}
+    try {
+      var d = new Date(); d.setTime(d.getTime() + 7 * 864e5);
+      document.cookie = 'bp_utm=' + encodeURIComponent(JSON.stringify(o)) +
+        '; expires=' + d.toUTCString() + '; path=/; SameSite=Lax';
+    } catch (e) {}
+  }
+
+  var cur = loadUTM(), add = false, m;
+  m = grab(location.search);
+  for (var a in m) { cur[a] = m[a]; add = true; }
+  try {
+    var nav = performance.getEntriesByType && performance.getEntriesByType('navigation')[0];
+    if (nav && nav.name) {
+      m = grab(nav.name.split('?')[1] || '');
+      for (var b in m) { cur[b] = m[b]; add = true; }
+    }
+  } catch (e) {}
+  try {
+    if (document.referrer) {
+      m = grab(document.referrer.split('?')[1] || '');
+      for (var c in m) { if (!cur[c]) { cur[c] = m[c]; add = true; } }
+    }
+  } catch (e) {}
+  if (add) utmSave(cur);
+  window.__BP_UTM__ = cur;
+  window.BP_UTM = cur;
+
+  /* ---- 购物车：cookie 里是 sku:qty:price,... ---- */
+  var raw = cookie('ltm_cart'), items = [], total = 0;
+  if (raw) {
+    var parts = raw.split(',');
+    for (var i = 0; i < parts.length && i < 50; i++) {
+      var seg = parts[i].split(':');
+      if (!seg[0]) continue;
+      var qty = parseInt(seg[1], 10) || 1;
+      var price = parseInt(seg[2], 10) || 0;
+      items.push({ sku: seg[0], name: '', qty: qty, price: price });
+      total += price * qty;
+    }
+  }
+  var amountText = '0 ₫';
+  try {
+    amountText = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 }).format(total) + ' ₫';
+  } catch (e) { amountText = String(total) + ' ₫'; }
+
+  window.__BP_CART__ = {
+    order_number: cookie('bp_oid') || '',
+    currency: 'VND',
+    total: total,
+    total_amount: amountText,
+    items: items,
+    locale: 'vi'
+  };
+  window.BP_CART = window.__BP_CART__;
+})();
+</script>
+
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Đặt hàng thành công — LOTTE Mart</title>

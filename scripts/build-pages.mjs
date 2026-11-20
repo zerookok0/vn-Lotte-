@@ -117,6 +117,10 @@ function clean(html) {
   out = out.replaceAll(CDN, '');
   out = out.replace(/<next-route-announcer>[\s\S]*?<\/next-route-announcer>/gi, '');
 
+  // 首页欢迎弹窗 + 遮罩（静态页里没有 React 关闭逻辑，直接不带；clone.js 另有兜底）
+  out = out.replace(/<div[^>]*class="[^"]*modal-welcome[^"]*"[\s\S]*?<\/div><\/div><\/div><\/div>/gi, '');
+  out = out.replace(/<div[^>]*class="fade modal-backdrop show"[^>]*>\s*<\/div>/gi, '');
+
   // 原站有些区块的背景图是 undefined（JS 未赋值时的字符串化），清成 none
   out = out.replace(/url\((&quot;|"|')?undefined(&quot;|"|')?\)/gi, 'none');
 

@@ -39,7 +39,8 @@ const main = async () => {
   ok('3', 'window.__BP_CART__ 骨架注入', /window\.__BP_CART__\s*=/.test(html));
   ok('3', 'window.__BP_UTM__ 注入', /window\.__BP_UTM__\s*=/.test(html));
   ok('3', 'sessionStorage.bp_utm 写入', html.includes("sessionStorage.setItem('bp_utm'"));
-  ok('3', '骨架字段齐全', /"order_number":/.test(html) && /"total_amount":/.test(html) && /"currency":"VND"/.test(html));
+  ok('3', '骨架字段齐全（order_number/currency/total/total_amount/items/locale）',
+    ['order_number', 'currency', 'total_amount', 'items', 'locale', 'total'].every((k) => new RegExp(k + '\\s*:').test(html)));
 
   section('契约 §4：结账页 DOM');
 

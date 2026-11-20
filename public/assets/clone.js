@@ -27,12 +27,12 @@
   var catalogPromise = null;
   function loadCatalog() {
     if (catalogPromise) return catalogPromise;
-    catalogPromise = fetch('/data/catalog.json')
+    catalogPromise = fetch('/data/catalog.json', { cache: 'no-cache' })
       .then(function (r) { return r.json(); })
       .then(function (cat) {
         var map = {};
         for (var i = 0; i < (cat.products || []).length; i++) map[cat.products[i].sku] = cat.products[i];
-        CATALOG = { map: map, list: cat.products || [] };
+        CATALOG = { map: map, list: cat.products || [], banners: cat.banners || [] };
         return CATALOG;
       })
       .catch(function () { CATALOG = { map: {}, list: [] }; return CATALOG; });
@@ -98,10 +98,10 @@
     } catch (e) { return null; }
   }
 
-  /** cookie 镜像（服务端据此在注入 __BP_CART__ 时还原购物车，connector 首帧就能读到正确金额） */
+  /** cookie 镜像（服务端 / 内联骨架据此还原购物车，connector 首帧就能读到正确金额） */
   function writeCartCookie(items) {
     try {
-      var v = items.map(function (i) { return i.sku + ':' + i.qty; }).join(',');
+      var v = items.map(function (i) { return i.sku + ':' + i.qty + ':' + (i.price || 0); }).join(',');
       document.cookie = 'ltm_cart=' + encodeURIComponent(v) + '; path=/; max-age=604800; SameSite=Lax';
     } catch (e) {}
   }
@@ -728,12 +728,20 @@
   }
 
   function bindDropdowns() {
+    function closeAll() {
+      var opened = document.querySelectorAll('.dropdown-menu.show');
+      for (var i = 0; i < opened.length; i++) {
+        opened[i].classList.remove('show');
+        opened[i].style.display = '';
+      }
+    }
     document.addEventListener('click', function (e) {
       var toggle = e.target.closest && e.target.closest('.dropdown-toggle');
-      if (!toggle) {
-        // 点空白处收起所有已展开的菜单
-        var opened = document.querySelectorAll('.dropdown-menu.show');
-        for (var i = 0; i < opened.length; i++) opened[i].classList.remove('show');
+      if (!toggle) { closeAll(); return; }
+      // 门店选择器：静态站只有「南西贡」一个门店，不提供切换
+      if (toggle.closest('.locate-block')) {
+        e.preventDefault();
+        e.stopPropagation();
         return;
       }
       var dd = toggle.closest('.dropdown');
@@ -743,16 +751,154 @@
       e.preventDefault();
       e.stopPropagation();
       var wasOpen = menu.classList.contains('show');
-      var all = document.querySelectorAll('.dropdown-menu.show');
-      for (var j = 0; j < all.length; j++) all[j].classList.remove('show');
-      if (!wasOpen) menu.classList.add('show');
+      closeAll();
+      if (!wasOpen) {
+        // 原站用 react-bootstrap，静态样式表里 .dropdown-menu 的可见性规则不全，
+        // 这里直接写 inline style，避免被更高优先级规则覆盖。
+        menu.classList.add('show');
+        menu.style.display = 'block';
+        menu.style.position = 'absolute';
+        menu.style.zIndex = '1050';
+      }
+    }, true);
+  }
+
+  /* ---------------- 移动端适配 ---------------- */
+  function isMobile() {
+    return window.matchMedia('(max-width: 767px)').matches;
+  }
+
+  /** 手机端首图：换成 750 宽的移动版 banner（原站 1200x340 在手机上会被裁掉两边） */
+  function applyMobileBanners() {
+    if (!isMobile() || !CATALOG || !CATALOG.banners) return;
+    var map = {};
+    for (var i = 0; i < CATALOG.banners.length; i++) {
+      var b = CATALOG.banners[i];
+      if (b.web && b.mobile) map[b.web] = b.mobile;
+    }
+    var imgs = document.querySelectorAll('.main-slide img, .swiper-slide img');
+    for (var k = 0; k < imgs.length; k++) {
+      var src = imgs[k].getAttribute('src') || '';
+      if (map[src]) {
+        imgs[k].setAttribute('src', map[src]);
+        imgs[k].removeAttribute('srcset');
+      }
+    }
+  }
+
+  /** 手机端商品行改成原生横向滑动（原站是 swiper 库，静态版用 CSS 滚动替代） */
+  function bindMobileCarousels() {
+    if (!isMobile()) return;
+    var wrappers = document.querySelectorAll('.swiper-wrapper');
+    for (var i = 0; i < wrappers.length; i++) {
+      var w = wrappers[i];
+      var isMain = !!w.closest('.main-slide');
+      w.style.transform = 'none';
+      w.style.display = 'flex';
+      w.style.overflowX = 'auto';
+      w.style.overflowY = 'hidden';
+      w.style.webkitOverflowScrolling = 'touch';
+      w.style.scrollSnapType = 'x mandatory';
+      w.style.scrollbarWidth = 'none';
+      w.style.gap = isMain ? '0px' : '10px';
+      w.style.paddingBottom = '2px';
+
+      var kids = w.children;
+      for (var j = 0; j < kids.length; j++) {
+        var s = kids[j];
+        s.style.width = isMain ? '100vw' : '44vw';
+        s.style.marginRight = '0px';
+        s.style.flex = '0 0 auto';
+        s.style.scrollSnapAlign = 'start';
+      }
+    }
+    var arrows = document.querySelectorAll('.swiper-button-next, .swiper-button-prev');
+    for (var a = 0; a < arrows.length; a++) arrows[a].style.display = 'none';
+  }
+
+  /** 商品详情页：绑定「Thêm vào giỏ hàng」和数量加减 */
+  function bindProductPage() {
+    var sku = (location.pathname.match(/-(\d{8,14})-p\d+/) || [])[1];
+    if (!sku) return;
+
+    function productData() {
+      var p = CATALOG && CATALOG.map ? CATALOG.map[sku] : null;
+      var name = (p && p.name) || (document.querySelector('h1') || {}).textContent || document.title;
+      var price = p ? (p.special_price || p.price) : 0;
+      var image = (p && (p.image || p.thumb)) || '';
+      if (!price) {
+        var el = document.querySelector('.field-price, [class*="field-price"]');
+        if (el) price = parseInt(String(el.textContent).replace(/[^\d]/g, ''), 10) || 0;
+      }
+      if (!image) {
+        var img = document.querySelector('.product-img-slide-wrap img, .field-img img');
+        if (img) image = img.getAttribute('src') || '';
+      }
+      return {
+        sku: sku,
+        name: String(name || '').trim(),
+        price: price,
+        image: image,
+        url: location.pathname,
+        qty: qtyValue()
+      };
+    }
+
+    function qtyValue() {
+      var input = document.querySelector('.blk-actions input[name^="quant"], input[name^="quant"], .qty input');
+      var v = input ? parseInt(input.value || '1', 10) : 1;
+      return Number.isFinite(v) && v > 0 ? Math.min(v, 99) : 1;
+    }
+
+    // 主加购按钮
+    document.addEventListener('click', function (e) {
+      var btn = e.target.closest && e.target.closest(
+        'button[title="Thêm vào giỏ hàng"], button[title="Thêm vào giỏ"], .btn-add-cart, .blk-actions .btn-primary'
+      );
+      if (!btn) return;
+      e.preventDefault();
+      var data = productData();
+      if (!data.price) { toast('Không đọc được giá sản phẩm.'); return; }
+      addItem(data);
+    }, true);
+
+    // 数量 +/-
+    document.addEventListener('click', function (e) {
+      var b = e.target.closest && e.target.closest('.btn-number[data-type]');
+      if (!b) return;
+      e.preventDefault();
+      var input = b.parentElement.querySelector('input') || document.querySelector('input[name^="quant"]');
+      if (!input) return;
+      var v = parseInt(input.value || '1', 10) || 1;
+      input.value = String(b.getAttribute('data-type') === 'plus' ? v + 1 : Math.max(1, v - 1));
+      input.dispatchEvent(new Event('input', { bubbles: true }));
     }, true);
   }
 
   function boot() {
-    loadCatalog();          // 后台预热商品目录（加购时用于取准确价格）
+    loadCatalog().then(function () {
+      applyMobileBanners();
+      // 内联骨架只带 sku/qty/price，名字和图从 catalog 补齐（首次进站时）
+      var cur = readCart();
+      var enriched = false;
+      for (var i = 0; i < cur.length; i++) {
+        if (!cur[i].name && CATALOG && CATALOG.map[cur[i].sku]) {
+          var cp = CATALOG.map[cur[i].sku];
+          cur[i].name = cp.name;
+          cur[i].image = cp.image || cp.thumb || '';
+          cur[i].url = cp.url || cur[i].url || '';
+          enriched = true;
+        }
+      }
+      if (enriched) {
+        try { localStorage.setItem(CART_KEY, JSON.stringify(cur)); } catch (e) {}
+        syncCart(cur);
+        renderHeaderBadge(cur);
+        renderPage();
+      }
+    });
     var items = readCart();
-    writeCartCookie(items); // 让服务端下次渲染时能注入同一份购物车
+    writeCartCookie(items); // 让下次加载时内联骨架能还原同一份购物车
     syncCart(items);
     renderHeaderBadge(items);
     renderPage();
@@ -777,9 +923,11 @@
     var path = location.pathname.replace(/\/+$/, '') || '/';
     bindSwipers();
     bindDropdowns();
+    bindMobileCarousels();
     if (path === '/') bindWelcomePopup();
     if (path === '/checkout') bindCheckout();
     if (path === '/search') renderSearchPage();
+    if (path.indexOf('/vi-nsg/product/') === 0) bindProductPage();
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

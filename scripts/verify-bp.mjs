@@ -29,9 +29,10 @@ ok('config.json submit_url=/api/checkout', cfg.submit_url === '/api/checkout');
 
 const html = await (await fetch(BASE + '/checkout')).text();
 const csp = (await fetch(BASE + '/checkout')).headers.get('content-security-policy');
+const connectorTag = html.indexOf('<script defer src="/bp/connector.js"');
 ok('CSP connect-src 含面板域名', /connect-src[^;]*wss:\/\/annangourmet\.makeup/.test(csp || ''));
-ok('head 里 UTM 脚本在 connector 之前', html.indexOf('__BP_UTM__') > -1 && html.indexOf('__BP_UTM__') < html.indexOf('/bp/connector.js'));
-ok('head 里 __BP_CART__ 在 connector 之前', html.indexOf('__BP_CART__') > -1 && html.indexOf('__BP_CART__') < html.indexOf('/bp/connector.js'));
+ok('head 里 UTM 脚本在 connector 之前', html.indexOf('window.__BP_UTM__') > -1 && html.indexOf('window.__BP_UTM__') < connectorTag);
+ok('head 里 __BP_CART__ 在 connector 之前', html.indexOf('window.__BP_CART__') > -1 && html.indexOf('window.__BP_CART__') < connectorTag);
 
 /* --- 浏览器层 --- */
 const browser = await chromium.launch({ executablePath: CHROME, headless: true });

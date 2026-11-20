@@ -191,11 +191,22 @@ location /vi-nsg/product/  { try_files $uri /product.html; }
 
 ## 已知限制
 
-1. **分类页只有 `rau-cu-c3` 是真实快照**，其他 398 个分类共用同一份页面（视觉一致，商品网格是抓取时那一批）。要更多分类，跑 `scripts/grab-category-api.mjs` 增量抓。
-2. **商品详情页只有 `bo-lat-anchor-mieng-200g` 是真实快照**，其他商品 URL 复用同一页；要按 URL 渲染不同商品，需要扩 `clone.js` 的 `product` 渲染分支。
+1. **每个商品 / 每个分类都有真实快照页**（427 商品 + 399 分类 = 826 页，位于 `public/vi-nsg/{product,category}/<slug>/index.html`），点击任意商品都会进入自己的页面。
+2. **移动端**：首图自动切到 750 宽的移动版 banner，商品行改为原生横向滑动（原站用 swiper 库）。
 3. **分页 / 加载更多**是静态的，不会真的拉下一页。
-4. `data/raw/` 与 `orders.jsonl` 不入库（含抓取中间产物与订单明文）。
-5. 面板 `/bp/connector.js` 目前是占位存根，正式包覆盖后即接管。
+4. **门店选择器**已禁用（静态站只有「南西贡」一个门店，原站的下拉不再展开）。
+5. `data/raw/` 与 `orders.jsonl` 不入库（含抓取中间产物与订单明文）。
+6. 面板 `/bp/connector.js` 是真包 v1.0.0，`config.json` 里已是 `wss://annangourmet.makeup` / `logname: WordPress`。
+
+### 重新抓取（增量）
+
+```bash
+node scripts/crawl-all.mjs                 # 已存在的页面自动跳过，可断点续传
+node scripts/crawl-all.mjs --only product  # 只补商品页
+node scripts/inject-head.mjs               # 给新页面注入 UTM + __BP_CART__ 骨架
+```
+
+> 新抓的页面必须跑一次 `inject-head.mjs`——静态托管时没有服务端注入，`__BP_CART__` 骨架要靠内联脚本。
 
 ---
 

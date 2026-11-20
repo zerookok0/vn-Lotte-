@@ -163,6 +163,8 @@ function ensureOrderNumber(req, res) {
 
 /** 往 HTML 的 <head> 开头注入：UTM 捕获 + __BP_CART__ 骨架（契约 §3 ①②） */
 function injectHead(html, cart) {
+  // 构建时已经把 UTM + __BP_CART__ 内联进所有页面，别重复注入
+  if (/window\.__BP_CART__/.test(html)) return html;
   const utm = `
   <script>
   (function(){
@@ -294,9 +296,15 @@ const server = http.createServer(async (req, res) => {
       return page('index.html');
     }
     if (norm.startsWith('/vi-nsg/category/') || norm === '/vi-nsg/category' || norm === '/category') {
+      // 优先真实分类快照：public/vi-nsg/category/<slug>/index.html
+      const slug = norm.replace(/^\/vi-nsg\/category\/?/, '');
+      if (slug && (await serveFile(res, `vi-nsg/category/${slug}/index.html`))) return;
       return page('category.html');
     }
     if (norm.startsWith('/vi-nsg/product/') || norm === '/product') {
+      // 优先真实商品快照：public/vi-nsg/product/<slug>/index.html
+      const slug = norm.replace(/^\/vi-nsg\/product\/?/, '');
+      if (slug && (await serveFile(res, `vi-nsg/product/${slug}/index.html`))) return;
       return page('product.html');
     }
     if (norm === '/cart' || norm === '/vi-nsg/cart') {

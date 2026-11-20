@@ -23,6 +23,18 @@ const toLocal = (u) => {
 
 const homepage = JSON.parse(await readFile(path.join(RAW, 'homepage.json'), 'utf8'));
 const categoriesRaw = JSON.parse(await readFile(path.join(RAW, 'categories.json'), 'utf8'));
+const bannersRaw = JSON.parse(await readFile(path.join(RAW, 'banners.json'), 'utf8')).data || [];
+
+/* 首页主 banner：桌面图 ↔ 手机图 一一对应（手机端要换成 app_image，否则首图被裁） */
+const banners = bannersRaw.map((b) => ({
+  id: b.banner_id,
+  title: b.title || b.banner_title || '',
+  web: toLocal(b.image?.image_web || ''),
+  mobile: toLocal(b.app_image || b.image?.image_web || ''),
+  link: toLocal(b.link_url || b.image?.link_url || ''),
+  type: b.image?.type_banner || '',
+  zone: b.type_zone || '',
+}));
 
 /* ---------------- 商品 ---------------- */
 const products = new Map();
@@ -178,6 +190,7 @@ const catalog = {
   categories: tree,
   categoriesFlat: flat.map(({ children, ...rest }) => rest),
   byCategory,
+  banners,
   zones,
 };
 

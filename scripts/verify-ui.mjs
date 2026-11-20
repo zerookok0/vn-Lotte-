@@ -19,12 +19,22 @@ page.on('pageerror', (e) => errs.push(String(e).slice(0, 160)));
 await page.goto(BASE + '/', { waitUntil: 'networkidle', timeout: 45000 });
 await page.waitForTimeout(1200);
 
-/* 1) 弹窗 */
-const modalBefore = await page.evaluate(() => getComputedStyle(document.querySelector('.modal-welcome')).display);
-await page.click('.modal-welcome .btn-close');
-await page.waitForTimeout(300);
-const modalAfter = await page.evaluate(() => getComputedStyle(document.querySelector('.modal-welcome')).display);
-ok('弹窗 X 可关闭', modalBefore === 'block' && modalAfter === 'none', `${modalBefore} → ${modalAfter}`);
+/* 1) 弹窗（构建时已从 HTML 移除；若仍存在则 X 必须能关） */
+const modalBefore = await page.evaluate(() => {
+  const m = document.querySelector('.modal-welcome');
+  return m ? getComputedStyle(m).display : 'absent';
+});
+if (modalBefore === 'absent') {
+  ok('首页无欢迎弹窗（构建时已移除）', true, 'absent');
+} else {
+  await page.click('.modal-welcome .btn-close');
+  await page.waitForTimeout(300);
+  const modalAfter = await page.evaluate(() => {
+    const m = document.querySelector('.modal-welcome');
+    return m ? getComputedStyle(m).display : 'gone';
+  });
+  ok('弹窗 X 可关闭', modalBefore === 'block' && (modalAfter === 'none' || modalAfter === 'gone'), `${modalBefore} → ${modalAfter}`);
+}
 
 /* 2) 轮播：主 banner（第一个带 next 箭头的 swiper） */
 const sw = await page.evaluate(() => {
@@ -48,19 +58,25 @@ if (sw) {
   ok('轮播 next 改变位移', false, 'no swiper found');
 }
 
-/* 3) 下拉菜单 */
+/* 3) 下拉菜单（排除门店选择器：那个已按需求禁用；只找真正带 menu 的） */
+const pickToggle = () => [...document.querySelectorAll('.dropdown-toggle')]
+  .find((e) => !e.closest('.locate-block') && e.closest('.dropdown') && e.closest('.dropdown').querySelector('.dropdown-menu'));
+
 const dd = await page.evaluate(() => {
-  const t = document.querySelector('.dropdown-toggle');
-  if (!t) return null;
-  const ddEl = t.closest('.dropdown');
-  const menu = ddEl && ddEl.querySelector('.dropdown-menu');
-  return menu ? { exists: true, shown: menu.classList.contains('show') } : { exists: false };
+  const t = [...document.querySelectorAll('.dropdown-toggle')]
+    .find((e) => !e.closest('.locate-block') && e.closest('.dropdown') && e.closest('.dropdown').querySelector('.dropdown-menu'));
+  return t ? { exists: true, cls: t.className.slice(0, 40) } : { exists: false };
 });
 if (dd && dd.exists) {
-  await page.evaluate(() => document.querySelector('.dropdown-toggle').click());
+  await page.evaluate(() => {
+    [...document.querySelectorAll('.dropdown-toggle')]
+      .find((e) => !e.closest('.locate-block') && e.closest('.dropdown') && e.closest('.dropdown').querySelector('.dropdown-menu'))
+      .click();
+  });
   await page.waitForTimeout(250);
   const opened = await page.evaluate(() => {
-    const t = document.querySelector('.dropdown-toggle');
+    const t = [...document.querySelectorAll('.dropdown-toggle')]
+      .find((e) => !e.closest('.locate-block') && e.closest('.dropdown') && e.closest('.dropdown').querySelector('.dropdown-menu'));
     const menu = t.closest('.dropdown').querySelector('.dropdown-menu');
     return { show: menu.classList.contains('show'), display: getComputedStyle(menu).display };
   });
@@ -69,14 +85,28 @@ if (dd && dd.exists) {
   await page.evaluate(() => document.body.click());
   await page.waitForTimeout(200);
   const closed = await page.evaluate(() => {
-    const t = document.querySelector('.dropdown-toggle');
-    const menu = t.closest('.dropdown').querySelector('.dropdown-menu');
-    return menu.classList.contains('show');
+    const t = [...document.querySelectorAll('.dropdown-toggle')]
+      .find((e) => !e.closest('.locate-block') && e.closest('.dropdown') && e.closest('.dropdown').querySelector('.dropdown-menu'));
+    return t.closest('.dropdown').querySelector('.dropdown-menu').classList.contains('show');
   });
   ok('点空白处收起下拉', closed === false);
 } else {
-  ok('下拉菜单可展开', false, 'no dropdown found');
+  ok('下拉菜单可展开', false, 'no dropdown with menu found');
 }
+
+/* 3b) 门店下拉必须是禁用状态 */
+const storeDrop = await page.evaluate(() => {
+  const lb = document.querySelector('.locate-block');
+  if (!lb) return { exists: false };
+  const menu = lb.querySelector('.dropdown-menu');
+  const toggle = lb.querySelector('.dropdown-toggle');
+  return {
+    exists: true,
+    menuDisplay: menu ? getComputedStyle(menu).display : 'none',
+    pointerEvents: toggle ? getComputedStyle(toggle).pointerEvents : 'auto',
+  };
+});
+ok('门店下拉已禁用', !storeDrop.exists || (storeDrop.menuDisplay === 'none' && storeDrop.pointerEvents === 'none'), JSON.stringify(storeDrop));
 
 /* 4) 加购仍然正常 */
 const cartBefore = await page.evaluate(() => (window.LTM ? window.LTM.cart().length : -1));
