@@ -20,8 +20,8 @@ const OUT = {
   home: 'index.html',
   'category-rau-cu': 'category.html',
   'product-butter': 'product.html',
-  cart: 'cart.html',
-  checkout: 'checkout.html',
+  // cart / checkout / order / search / login 由 scripts/build-shell.mjs 生成，
+  // 不要用抓取的原站页面覆盖（原站那两个页面是「需登录/出错」页）
 };
 
 const HEAD_INJECT = `
@@ -116,6 +116,9 @@ function clean(html) {
   out = out.replaceAll(CDN + '/', '/');
   out = out.replaceAll(CDN, '');
   out = out.replace(/<next-route-announcer>[\s\S]*?<\/next-route-announcer>/gi, '');
+
+  // 原站有些区块的背景图是 undefined（JS 未赋值时的字符串化），清成 none
+  out = out.replace(/url\((&quot;|"|')?undefined(&quot;|"|')?\)/gi, 'none');
 
   // YouTube 内嵌（frame-src 'self' 下必然被拦）：换成缩略图 + 外链，尺寸由外层容器决定
   out = out.replace(

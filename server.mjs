@@ -218,32 +218,33 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'GET' || req.method === 'HEAD') {
     const oid = ensureOrderNumber(req, res);
     const page = (file) => readPage(file).then((h) => send(res, 200, injectHead(h, oid), MIME['.html']));
+    const norm = pathname.replace(/\/+$/, '') || '/';
 
-    if (pathname === '/' || pathname === '/vi-nsg' || pathname === '/vi' || pathname === '/index.html') {
+    if (norm === '/' || norm === '/vi-nsg' || norm === '/vi' || norm === '/index.html') {
       return page('index.html');
     }
-    if (pathname.startsWith('/vi-nsg/category/') || pathname === '/vi-nsg/category') {
+    if (norm.startsWith('/vi-nsg/category/') || norm === '/vi-nsg/category' || norm === '/category') {
       return page('category.html');
     }
-    if (pathname.startsWith('/vi-nsg/product/')) {
+    if (norm.startsWith('/vi-nsg/product/') || norm === '/product') {
       return page('product.html');
     }
-    if (pathname === '/cart' || pathname === '/vi-nsg/cart') {
+    if (norm === '/cart' || norm === '/vi-nsg/cart') {
       return page('cart.html');
     }
-    if (pathname === '/checkout' || pathname === '/vi-nsg/checkout') {
+    if (norm === '/checkout' || norm === '/vi-nsg/checkout') {
       return page('checkout.html');
     }
-    if (pathname.startsWith('/order/')) {
+    if (norm.startsWith('/order/')) {
       return page('order.html');
     }
-    if (pathname === '/login' || pathname === '/vi-nsg/login') {
+    if (norm === '/login' || norm === '/vi-nsg/login') {
       return page('login.html');
     }
-    if (pathname === '/search') {
+    if (norm === '/search') {
       return page('search.html');
     }
-    if (pathname === '/sw.js' || pathname === '/service-worker.js') {
+    if (norm === '/sw.js' || norm === '/service-worker.js') {
       return send(res, 404, 'no service worker', 'text/plain; charset=utf-8');
     }
   }
