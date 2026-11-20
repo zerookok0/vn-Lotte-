@@ -268,13 +268,24 @@
     var btn = e.target.closest && e.target.closest('.btn-cart, .clone-add-cart');
     if (btn) {
       e.preventDefault();
+      // 搜索结果卡 / 模板渲染卡：数据直接挂在按钮上
+      if (btn.dataset && btn.dataset.sku) {
+        addItem({
+          sku: btn.dataset.sku,
+          name: btn.dataset.name || '',
+          price: Number(btn.dataset.price) || 0,
+          image: btn.dataset.image || '',
+          url: btn.dataset.url || '',
+          qty: 1
+        });
+        return;
+      }
       var a = btn.closest('.field-img')?.querySelector('a[href*="/product/"]')
         || btn.closest('[data-product]')
         || btn.closest('.item')?.querySelector('a[href*="/product/"]');
       if (!a) return;
       var data = cardData(a);
       if (!data.price) {
-        // 价格没解析出来时从 title 里再试一次
         data.price = parsePrice(btn.getAttribute('data-price') || '');
       }
       if (!data.name) return;
@@ -589,34 +600,43 @@
 
     box.innerHTML = '<p class="clone-note">Đang tải…</p>';
 
-    fetch('/data/catalog.json').then(function (r) { return r.json(); }).then(function (cat) {
-      var needle = q.toLowerCase().trim();
-      var list = (cat.products || []).filter(function (p) {
-        if (!needle) return true;
-        return String(p.name || '').toLowerCase().indexOf(needle) !== -1;
-      }).slice(0, 60);
+    // 全量索引（14749 商品）：[sku, name, url, price, image]
+    fetch('/data/search-index.json', { cache: 'force-cache' })
+      .then(function (r) { return r.json(); })
+      .then(function (rows) {
+        var needle = q.toLowerCase().trim();
+        var hits = [];
+        for (var i = 0; i < rows.length; i++) {
+          var row = rows[i];
+          if (!needle || String(row[1]).toLowerCase().indexOf(needle) !== -1) {
+            hits.push(row);
+            if (hits.length >= 60) break;
+          }
+        }
 
-      if (metaEl) metaEl.textContent = list.length + ' sản phẩm';
+        if (metaEl) metaEl.textContent = hits.length + ' sản phẩm' + (hits.length >= 60 ? ' (hiển thị 60)' : '');
 
-      if (!list.length) {
-        box.innerHTML = '<div class="clone-empty"><p>Không tìm thấy sản phẩm phù hợp.</p><a class="clone-btn clone-btn-primary" href="/">Về trang chủ</a></div>';
-        return;
-      }
+        if (!hits.length) {
+          box.innerHTML = '<div class="clone-empty"><p>Không tìm thấy sản phẩm phù hợp.</p><a class="clone-btn clone-btn-primary" href="/">Về trang chủ</a></div>';
+          return;
+        }
 
-      box.innerHTML = list.map(function (p) {
-        return '' +
-          '<div class="clone-product-card">' +
-            '<a href="' + esc(p.url) + '" class="clone-product-thumb">' +
-              (p.image ? '<img src="' + esc(p.image) + '" alt="' + esc(p.name) + '" loading="lazy">' : '') +
-            '</a>' +
-            '<a href="' + esc(p.url) + '" class="clone-product-name">' + esc(p.name) + '</a>' +
-            '<div class="clone-product-price">' + esc(p.special_price_formatted || p.price_formatted || money(p.price)) + '</div>' +
-            '<button class="clone-add-cart btn-cart" type="button" data-price="' + (p.special_price || p.price) + '">Thêm vào giỏ</button>' +
-          '</div>';
-      }).join('');
-    }).catch(function () {
-      box.innerHTML = '<p class="clone-note">Không tải được dữ liệu sản phẩm.</p>';
-    });
+        box.innerHTML = hits.map(function (row) {
+          var sku = row[0], name = row[1], url = row[2], price = row[3], image = row[4];
+          return ''
+            + '<div class="clone-product-card">'
+            + '<a href="' + esc(url) + '" class="clone-product-thumb">'
+            + (image ? '<img src="' + esc(image) + '" alt="' + esc(name) + '" loading="lazy">' : '')
+            + '</a>'
+            + '<a href="' + esc(url) + '" class="clone-product-name">' + esc(name) + '</a>'
+            + '<div class="clone-product-price">' + esc(money(price)) + '</div>'
+            + '<button class="clone-add-cart btn-cart" type="button" data-price="' + (price || 0) + '" data-sku="' + esc(sku) + '" data-name="' + esc(name) + '" data-url="' + esc(url) + '" data-image="' + esc(image || '') + '">Thêm vào giỏ</button>'
+            + '</div>';
+        }).join('');
+      })
+      .catch(function () {
+        box.innerHTML = '<p class="clone-note">Không tải được dữ liệu sản phẩm.</p>';
+      });
   }
 
   /* ---------------- 启动 ---------------- */
@@ -875,6 +895,124 @@
     }, true);
   }
 
+  /** 商品页：当当前 slug 没有真实快照（落到模板页）时，按 URL 里的 SKU 拉分片数据渲染 */
+  function renderProductFromData() {
+    var m = location.pathname.match(/-(\d{8,14})-p\d+/);
+    if (!m) return;
+    var sku = m[1];
+
+    fetch('/data/p/' + sku.slice(0, 2) + '.json', { cache: 'force-cache' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (shard) {
+        if (!shard || !shard.products) return;
+        var p = null;
+        for (var i = 0; i < shard.products.length; i++) {
+          if (String(shard.products[i].sku) === sku) { p = shard.products[i]; break; }
+        }
+        if (!p) return;
+        window.__LTM_SHARD_POOL__ = shard.products;
+
+        // 已经是该商品的真实快照 → 不用动
+        var titleNow = document.title || '';
+        if (titleNow.indexOf(p.name.slice(0, 24)) === 0) return;
+
+        applyProductData(p);
+      })
+      .catch(function () {});
+  }
+
+  function applyProductData(p) {
+    var price = p.special_price || p.price || 0;
+    var priceText = p.special_price_formatted || p.price_formatted || money(price);
+
+    document.title = p.name + ' - LOTTE Mart Online';
+
+    // og / meta
+    var og = document.querySelector('meta[property="og:title"]');
+    if (og) og.setAttribute('content', p.name + ' - Mua ngay tại LOTTE Mart!');
+    var ogi = document.querySelector('meta[property="og:image"]');
+    if (ogi && p.image_big) ogi.setAttribute('content', p.image_big);
+
+    // 面包屑最后一项
+    var crumb = document.querySelector('section.breadcrumb ul li:last-child');
+    if (crumb) {
+      var link = crumb.querySelector('a') || crumb.querySelector('button');
+      if (link) link.textContent = p.name;
+      else crumb.textContent = p.name;
+    }
+
+    // 商品名（模板里是 .product-custom 下的 h2）
+    var h2 = document.querySelector('.product-custom h2');
+    if (h2) h2.textContent = p.name;
+    var h1 = document.querySelector('.product-custom h1');
+    if (h1) h1.textContent = p.name;
+
+    // 价格
+    var priceEl = document.querySelector('.product-custom .field-price');
+    if (priceEl) priceEl.textContent = priceText;
+    var oldEl = document.querySelector('.product-custom .field-price-old');
+    if (oldEl) {
+      if (p.special_price && p.price && p.special_price !== p.price) {
+        oldEl.textContent = p.price_formatted || money(p.price);
+        oldEl.style.display = '';
+      } else {
+        oldEl.textContent = '';
+        oldEl.style.display = 'none';
+      }
+    }
+
+    // 画廊：所有主图换成该商品的图
+    var big = p.image_big || p.image;
+    if (big) {
+      var gs = document.querySelectorAll('.swiper-gallery img, .product-img-slide-wrap img');
+      for (var i = 0; i < gs.length; i++) {
+        gs[i].setAttribute('src', big);
+        gs[i].removeAttribute('srcset');
+        gs[i].setAttribute('alt', p.name);
+      }
+      var thumbs = document.querySelectorAll('.swiper-gallery-thumb img');
+      for (var j = 0; j < thumbs.length; j++) {
+        thumbs[j].setAttribute('src', p.image || big);
+        thumbs[j].removeAttribute('srcset');
+      }
+    }
+
+    // 库存 / 单位
+    var viewed = document.querySelector('.product-custom .lbl-viewed');
+    if (viewed) viewed.textContent = String(p.stock_qty || 0) + ' còn hàng';
+
+    // 描述
+    var desc = document.querySelector('.pro-tab-content .short-desc, .pro-tab-content');
+    if (desc && (p.short_description || p.usage_notes)) {
+      var text = (p.short_description || '') || (p.usage_notes || '');
+      if (text) {
+        desc.innerHTML = '<p>' + String(text).replace(/[<>]/g, '') + '</p>'
+          + (p.usage_notes && p.short_description ? '<p>' + String(p.usage_notes).replace(/[<>]/g, '') + '</p>' : '');
+      }
+    }
+
+    // 模板页里「相关商品」也用同分片的商品替换，避免露出模板商品的推荐
+    try {
+      var rels = document.querySelectorAll('.list-products-grid .item');
+      var pool = (window.__LTM_SHARD_POOL__ || []);
+      for (var k = 0; k < rels.length && k < pool.length; k++) {
+        var q = pool[k];
+        if (!q || q.sku === p.sku) continue;
+        var a = rels[k].querySelector('a[href*="/vi-nsg/product/"]');
+        var img = rels[k].querySelector('img');
+        var nameEl = rels[k].querySelector('.field-name a');
+        var pe = rels[k].querySelector('.field-price');
+        if (a) a.setAttribute('href', q.url);
+        if (img && (q.image || q.thumbnail)) { img.setAttribute('src', q.image || q.thumbnail); img.removeAttribute('srcset'); }
+        if (nameEl) nameEl.textContent = q.name;
+        if (pe) pe.textContent = q.special_price_formatted || q.price_formatted || '';
+      }
+    } catch (e) {}
+
+    // __BP_CART__ 的订单号不变（契约要求单号复用）
+    syncTotal();
+  }
+
   function boot() {
     loadCatalog().then(function () {
       applyMobileBanners();
@@ -927,7 +1065,10 @@
     if (path === '/') bindWelcomePopup();
     if (path === '/checkout') bindCheckout();
     if (path === '/search') renderSearchPage();
-    if (path.indexOf('/vi-nsg/product/') === 0) bindProductPage();
+    if (path.indexOf('/vi-nsg/product/') === 0) {
+      bindProductPage();
+      renderProductFromData();
+    }
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

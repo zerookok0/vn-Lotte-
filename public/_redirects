@@ -10,6 +10,11 @@
 # 订单成功页：/order/<号> 没有实体文件，内部重写到无扩展名的 /order
 /order/*             /order        200
 
+# 商品 / 分类兜底：已抓到的 427 个商品页、399 个分类页是真实文件，Pages 优先命中；
+# 只有「没有快照」的 slug 才会落到模板页，由 clone.js 按 URL 里的 SKU 拉分片数据渲染。
+/vi-nsg/product/*    /product      200
+/vi-nsg/category/*   /category     200
+
 # 兼容带 /vi-nsg 前缀的入口
 /vi-nsg/cart         /cart         200
 /vi-nsg/checkout     /checkout     200
