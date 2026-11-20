@@ -191,17 +191,31 @@
 
   /* ---------------- 头部角标 ---------------- */
 
+  /** 找到「当前真实可见」的购物车图标宿主元素
+   *  桌面端是 a[href="/cart"]，移动端是包着 .icon-cart 的那个 a（href 指向商品页#）*/
+  function findCartIconEl() {
+    var icons = document.querySelectorAll('.header-app .icon-cart, .header-app [class*="icon-cart"]');
+    for (var i = 0; i < icons.length; i++) {
+      var host = icons[i].closest('a') || icons[i].closest('button') || icons[i].parentElement;
+      if (host && host.getBoundingClientRect().width > 1) return host;
+    }
+    var fallback = document.querySelector('.header-app a[href="/cart"], a[href="/cart"].btn-shopping-cart');
+    return fallback || null;
+  }
+
   function renderHeaderBadge(items) {
     items = items || readCart();
     var count = cartCount(items);
-    var cartLink = document.querySelector('a[href="/cart"]');
-    if (!cartLink) return;
-    var badge = cartLink.querySelector('.clone-badge');
+    var host = findCartIconEl();
+    if (!host) return;
+
+    var badge = host.querySelector('.clone-badge');
     if (!badge) {
       badge = document.createElement('span');
       badge.className = 'clone-badge';
-      cartLink.appendChild(badge);
+      host.appendChild(badge);
     }
+    if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
     badge.textContent = count > 99 ? '99+' : String(count);
     badge.style.display = count > 0 ? 'inline-flex' : 'none';
   }
@@ -265,6 +279,18 @@
   /* ---------------- 事件委托 ---------------- */
 
   document.addEventListener('click', function (e) {
+    // 顶部购物车图标：原站是「打开购物袋侧栏」的触发器（href 指向商品页#），
+    // 静态版直接跳购物车页。
+    var cartIcon = e.target.closest && e.target.closest('.header-app .icon-cart, .header-app [class*="icon-cart"]');
+    if (cartIcon) {
+      var host = cartIcon.closest('a') || cartIcon.closest('button');
+      if (host && !/\/cart\/?$/.test(host.getAttribute('href') || '')) {
+        e.preventDefault();
+        location.href = '/cart';
+        return;
+      }
+    }
+
     var btn = e.target.closest && e.target.closest('.btn-cart, .clone-add-cart');
     if (btn) {
       e.preventDefault();
@@ -842,16 +868,30 @@
     if (!sku) return;
 
     function productData() {
-      var p = CATALOG && CATALOG.map ? CATALOG.map[sku] : null;
-      var name = (p && p.name) || (document.querySelector('h1') || {}).textContent || document.title;
+      // 优先用分片数据（模板渲染页已加载），其次 catalog，最后才从 DOM 猜
+      var injected = window.__LTM_PRODUCT__;
+      var p = (injected && String(injected.sku) === sku) ? injected
+        : (CATALOG && CATALOG.map ? CATALOG.map[sku] : null);
+
+      var name = (p && p.name) || '';
+      if (!name) {
+        var nameEl = document.querySelector('.product-custom h2, .product-custom h1:not(.logo), .product-single h2');
+        if (nameEl) name = nameEl.textContent;
+      }
+      if (!name) {
+        var og = document.querySelector('meta[property="og:title"]');
+        if (og) name = String(og.getAttribute('content') || '').replace(/\s*-\s*Mua ngay.*$/, '');
+      }
+      if (!name) name = document.title.replace(/\s*-\s*LOTTE Mart.*$/, '');
+
       var price = p ? (p.special_price || p.price) : 0;
       var image = (p && (p.image || p.thumb)) || '';
       if (!price) {
-        var el = document.querySelector('.field-price, [class*="field-price"]');
+        var el = document.querySelector('.product-custom .field-price, .field-price');
         if (el) price = parseInt(String(el.textContent).replace(/[^\d]/g, ''), 10) || 0;
       }
       if (!image) {
-        var img = document.querySelector('.product-img-slide-wrap img, .field-img img');
+        var img = document.querySelector('.swiper-gallery img, .product-img-slide-wrap img');
         if (img) image = img.getAttribute('src') || '';
       }
       return {
@@ -911,6 +951,7 @@
         }
         if (!p) return;
         window.__LTM_SHARD_POOL__ = shard.products;
+        window.__LTM_PRODUCT__ = p;
 
         // 已经是该商品的真实快照 → 不用动
         var titleNow = document.title || '';

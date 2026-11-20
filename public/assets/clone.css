@@ -491,10 +491,14 @@
   display: none;
   align-items: center;
   justify-content: center;
+  z-index: 6;
+  pointer-events: none;
 }
-.header-app a[href="/cart"],
-.header-app a[href="/cart/"] { position: relative; }
-.header-app a[href="/cart"] { position: relative; }
+/* 任何可能承载角标的头部元素都确保是定位容器 */
+.header-app a,
+.header-app button,
+.header-app .icon-cart { position: relative; }
+.header-app .icon-cart { display: inline-flex; }
 
 /* ---------- toast ---------- */
 .clone-toast {
@@ -570,8 +574,16 @@
   .swiper-button-next,
   .swiper-button-prev { display: none !important; }
 
+  /* 手机端去掉 swiper 的循环副本：静态版没有 JS 循环，留着会看到同一张图重复 */
+  .swiper-slide-duplicate { display: none !important; }
+
   /* 移动端首图更贴边，避免两侧留白 */
   .main-slide .swiper-slide img { width: 100vw !important; height: auto !important; }
+
+  /* 商品画廊：单图时需要撑满且不变形 */
+  .swiper-gallery .swiper-slide,
+  .swiper-gallery .swiper-slide > div { width: 100vw !important; }
+  .swiper-gallery img { width: 100vw !important; height: auto !important; object-fit: contain; }
 }
 
 /* ---------- 响应式 ---------- */
