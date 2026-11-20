@@ -77,6 +77,17 @@ if (!cspOk) {
   process.exit(1);
 }
 
+/* _redirects 不能把任何路径 200 重写到 *.html ——
+   Pages 的 clean-URL 会把 /xxx.html 308 回 /xxx，和这条重写形成无限循环
+   （浏览器报 ERR_TOO_MANY_REDIRECTS）。 */
+const redirects = await readFile(path.join(PUBLIC, '_redirects'), 'utf8');
+const badRedirects = [...redirects.matchAll(/^\s*(\S+)\s+(\S+\.html)\s+200\b/gm)];
+if (badRedirects.length) {
+  console.error('✗ public/_redirects 里存在指向 *.html 的 200 重写，会和 Pages clean-URL 形成重定向循环：');
+  badRedirects.forEach((m) => console.error(`    ${m[1]}  ->  ${m[2]}`));
+  process.exit(1);
+}
+
 let files = 0;
 let bytes = 0;
 async function walk(dir) {
