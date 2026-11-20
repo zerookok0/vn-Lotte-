@@ -5,7 +5,7 @@
   Permissions-Policy: payment=(self), clipboard-write=(self)
 
 /assets/*
-  Cache-Control: public, max-age=3600
+  Cache-Control: no-cache
 
 /_next/*
   Cache-Control: public, max-age=31536000, immutable

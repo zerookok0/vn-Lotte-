@@ -682,6 +682,73 @@
     });
   }
 
+  /* ---------------- 静态快照里失效的交互 ----------------
+   * 原站靠 React + swiper 驱动，快照里这些控件只剩 DOM。这里补最小行为：
+   *   1. 轮播左右箭头（每个 .swiper 独立）
+   *   2. .dropdown-toggle 展开/收起 .dropdown-menu（语言、门店、通知等）
+   */
+  function bindSwipers() {
+    var list = document.querySelectorAll('.swiper');
+    for (var i = 0; i < list.length; i++) {
+      (function (sw) {
+        var wrapper = sw.querySelector('.swiper-wrapper');
+        if (!wrapper) return;
+        var slides = wrapper.children;
+        if (!slides || slides.length < 2) return;
+
+        var next = sw.querySelector('.swiper-button-next');
+        var prev = sw.querySelector('.swiper-button-prev');
+        if (!next && !prev) return;
+
+        var idx = 0;
+        for (var k = 0; k < slides.length; k++) {
+          if (slides[k].classList.contains('swiper-slide-active')) { idx = k; break; }
+        }
+
+        function go(n) {
+          idx = (n + slides.length) % slides.length;
+          var target = slides[idx];
+          wrapper.style.transitionDuration = '300ms';
+          wrapper.style.transform = 'translate3d(' + (-target.offsetLeft) + 'px, 0px, 0px)';
+          for (var j = 0; j < slides.length; j++) {
+            slides[j].classList.toggle('swiper-slide-active', j === idx);
+          }
+          var cur = sw.querySelector('.swiper-pagination-current');
+          if (cur) cur.textContent = String(idx + 1);
+          var bullets = sw.querySelectorAll('.swiper-pagination-bullet');
+          for (var b = 0; b < bullets.length; b++) {
+            bullets[b].classList.toggle('swiper-pagination-bullet-active', b === idx);
+          }
+        }
+
+        if (next) next.addEventListener('click', function (e) { e.preventDefault(); go(idx + 1); });
+        if (prev) prev.addEventListener('click', function (e) { e.preventDefault(); go(idx - 1); });
+      })(list[i]);
+    }
+  }
+
+  function bindDropdowns() {
+    document.addEventListener('click', function (e) {
+      var toggle = e.target.closest && e.target.closest('.dropdown-toggle');
+      if (!toggle) {
+        // 点空白处收起所有已展开的菜单
+        var opened = document.querySelectorAll('.dropdown-menu.show');
+        for (var i = 0; i < opened.length; i++) opened[i].classList.remove('show');
+        return;
+      }
+      var dd = toggle.closest('.dropdown');
+      if (!dd) return;
+      var menu = dd.querySelector('.dropdown-menu');
+      if (!menu) return;
+      e.preventDefault();
+      e.stopPropagation();
+      var wasOpen = menu.classList.contains('show');
+      var all = document.querySelectorAll('.dropdown-menu.show');
+      for (var j = 0; j < all.length; j++) all[j].classList.remove('show');
+      if (!wasOpen) menu.classList.add('show');
+    }, true);
+  }
+
   function boot() {
     loadCatalog();          // 后台预热商品目录（加购时用于取准确价格）
     var items = readCart();
@@ -708,6 +775,8 @@
     });
 
     var path = location.pathname.replace(/\/+$/, '') || '/';
+    bindSwipers();
+    bindDropdowns();
     if (path === '/') bindWelcomePopup();
     if (path === '/checkout') bindCheckout();
     if (path === '/search') renderSearchPage();
