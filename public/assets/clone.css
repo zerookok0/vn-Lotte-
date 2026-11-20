@@ -574,8 +574,8 @@
   .swiper-button-next,
   .swiper-button-prev { display: none !important; }
 
-  /* 手机端去掉 swiper 的循环副本：静态版没有 JS 循环，留着会看到同一张图重复 */
-  .swiper-slide-duplicate { display: none !important; }
+  /* 商品画廊去掉 swiper 的循环副本（首页 banner 的 duplicate 要留着，它是首帧） */
+  .swiper-gallery .swiper-slide-duplicate { display: none !important; }
 
   /* 移动端首图更贴边，避免两侧留白 */
   .main-slide .swiper-slide img { width: 100vw !important; height: auto !important; }
