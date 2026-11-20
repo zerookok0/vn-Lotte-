@@ -1058,6 +1058,18 @@
     syncTotal();
   }
 
+  /* 坏图兜底：原站有少量图片本身 403（客户晒图、评价图），不要留破图图标 */
+  document.addEventListener('error', function (e) {
+    var t = e.target;
+    if (t && t.tagName === 'IMG' && !t.dataset.bpBroken) {
+      t.dataset.bpBroken = '1';
+      t.style.visibility = 'hidden';
+      if (t.parentElement && !t.parentElement.textContent.trim()) {
+        t.parentElement.style.background = '#f5f5f5';
+      }
+    }
+  }, true);
+
   function boot() {
     loadCatalog().then(function () {
       applyMobileBanners();

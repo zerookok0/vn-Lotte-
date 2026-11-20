@@ -25,10 +25,19 @@ for (const p of catalog.products) {
     if (p[k] && p[k].startsWith('/')) wanted.add(p[k]);
   }
 }
-/* 2. HTML 里的本地引用 */
-const htmlFiles = (await readdir(PUBLIC)).filter((f) => f.endsWith('.html'));
+/* 2. HTML 里的本地引用（递归所有子目录，专题页/商品页都在子目录里） */
+async function walkHtml(dir, out = []) {
+  for (const e of await readdir(dir, { withFileTypes: true })) {
+    const full = path.join(dir, e.name);
+    if (e.isDirectory()) await walkHtml(full, out);
+    else if (e.name.endsWith('.html')) out.push(full);
+  }
+  return out;
+}
+const htmlFiles = await walkHtml(PUBLIC);
+console.log(`html files scanned: ${htmlFiles.length}`);
 for (const f of htmlFiles) {
-  const html = await readFile(path.join(PUBLIC, f), 'utf8');
+  const html = await readFile(f, 'utf8');
   for (const m of html.matchAll(/(?:src|href)="(\/[^"]+)"/g)) wanted.add(m[1]);
   for (const m of html.matchAll(/url\((['"]?)(\/[^'")]+)\1\)/g)) wanted.add(m[2]);
 }
