@@ -1,18 +1,22 @@
 {
-  "name": "aurora-supply",
+  "name": "vn-lotte-clone",
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "Aurora Supply — static storefront + Node reference server (checkout fixture)",
+  "description": "LOTTE Mart Vietnam storefront clone — static snapshot + guest checkout (/bp contract v1.0)",
   "scripts": {
+    "build": "node scripts/cloudflare-build.mjs",
     "dev": "node server.mjs",
     "start": "node server.mjs",
-    "verify": "node scripts/verify.mjs"
+    "verify": "node scripts/verify.mjs",
+    "verify:bp": "node scripts/verify-bp.mjs",
+    "e2e": "node scripts/e2e.mjs",
+    "crawl": "node scripts/crawl.mjs --shots"
   },
   "engines": {
     "node": ">=20"
   },
-  "dependencies": {
+  "devDependencies": {
     "playwright-core": "^1.65.1"
   }
 }

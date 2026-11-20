@@ -80,6 +80,24 @@
     return [];
   }
 
+  /** 下单成功后把「单号|金额」写进 cookie：order 页刷新/纯静态托管下也能显示金额 */
+  function writeOrderCookie(orderNumber, amount) {
+    try {
+      document.cookie = 'ltm_last_order=' + encodeURIComponent(String(orderNumber) + '|' + String(amount || 0))
+        + '; path=/; max-age=604800; SameSite=Lax';
+    } catch (e) {}
+  }
+
+  function readOrderCookie() {
+    try {
+      var m = document.cookie.match(/(?:^|;\s*)ltm_last_order=([^;]+)/);
+      if (!m) return null;
+      var parts = decodeURIComponent(m[1]).split('|');
+      if (!parts[0]) return null;
+      return { order_number: parts[0], total: Number(parts[1]) || 0 };
+    } catch (e) { return null; }
+  }
+
   /** cookie 镜像（服务端据此在注入 __BP_CART__ 时还原购物车，connector 首帧就能读到正确金额） */
   function writeCartCookie(items) {
     try {
@@ -399,7 +417,14 @@
       return;
     }
 
-    // 2) 回落服务端记录（刷新/换标签页也能显示）
+    // 2) cookie（纯静态托管 / 刷新后仍在）
+    var ck = readOrderCookie();
+    if (ck && ck.order_number === orderNumber && ck.total) {
+      apply(ck.total, money(ck.total));
+      return;
+    }
+
+    // 3) 回落服务端记录（本地参考服务器 / 有后端的形态）
     fetch('/api/order/' + encodeURIComponent(orderNumber))
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (d) {
@@ -539,6 +564,7 @@
           }));
           localStorage.removeItem(CART_KEY);
           writeCartCookie([]);
+          writeOrderCookie(data.order_number, payload.amount);
         } catch (e) {}
         // 契约 §6.1：跳转由前端决定
         window.location.href = '/order/' + encodeURIComponent(data.order_number) + location.search;
@@ -616,6 +642,7 @@
         }));
         localStorage.removeItem(CART_KEY);
         writeCartCookie([]);
+        writeOrderCookie(d.order_number || c.order_number, Number(c.total) || 0);
       } catch (err) {}
     });
 
