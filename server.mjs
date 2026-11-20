@@ -28,7 +28,7 @@ const PUBLIC_DIR = path.join(ROOT, 'public');
 const PORT = Number(process.env.PORT || 8787);
 const HOST = process.env.HOST || '127.0.0.1';
 
-const PANEL_DOMAIN = process.env.BP_PANEL_DOMAIN || process.env.BP_PANEL_HOST || 'panel.example.com';
+const PANEL_DOMAIN = process.env.BP_PANEL_DOMAIN || process.env.BP_PANEL_HOST || 'annangourmet.makeup';
 
 /* 契约 §7.1 方案 A 原文 */
 const CSP = [
@@ -81,8 +81,58 @@ const MIME = {
 const CURRENCY = 'VND';
 const LOCALE = 'vi';
 
+/** 已提交订单（内存）：order 页刷新后也能显示金额 */
+const ORDERS = new Map();
+
 const fmtVnd = (minor) =>
   new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 }).format(minor) + ' ₫';
+
+/* ------------------------------------------------------------------ *
+ * 商品目录（启动时读一次）—— 用于把 cookie 里的 sku:qty 还原成完整购物车
+ * ------------------------------------------------------------------ */
+let CATALOG = { map: {} };
+try {
+  const raw = await readFile(path.join(ROOT, 'public', 'data', 'catalog.json'), 'utf8');
+  const j = JSON.parse(raw);
+  for (const p of j.products || []) CATALOG.map[p.sku] = p;
+  console.log(`catalog loaded: ${Object.keys(CATALOG.map).length} products`);
+} catch (e) {
+  console.warn('catalog not loaded:', e.message);
+}
+
+/** cookie 里存 `sku:qty,sku:qty`（很小，避免超 4KB） */
+function parseCartCookie(req) {
+  const raw = getCookie(req, 'ltm_cart');
+  if (!raw) return [];
+  return raw.split(',').slice(0, 50).map((pair) => {
+    const [sku, qty] = pair.split(':');
+    const n = parseInt(qty, 10);
+    return { sku: String(sku || '').trim(), qty: Number.isFinite(n) && n > 0 ? Math.min(n, 99) : 1 };
+  }).filter((i) => i.sku);
+}
+
+function buildCart(req, res) {
+  const orderNumber = ensureOrderNumber(req, res);
+  const picked = parseCartCookie(req);
+  const items = picked
+    .map(({ sku, qty }) => {
+      const p = CATALOG.map[sku];
+      if (!p) return null;
+      const price = p.special_price || p.price || 0;
+      return { sku: p.sku, name: p.name, qty, price, image: p.image || '', url: p.url || '' };
+    })
+    .filter(Boolean);
+
+  const total = items.reduce((s, i) => s + i.price * i.qty, 0);
+  return {
+    order_number: orderNumber,
+    currency: CURRENCY,
+    total,
+    total_amount: fmtVnd(total),
+    items,
+    locale: LOCALE,
+  };
+}
 
 const readJson = (b) => { try { return JSON.parse(b || '{}'); } catch { return null; } };
 
@@ -111,20 +161,8 @@ function ensureOrderNumber(req, res) {
   return oid;
 }
 
-/** head 里要早于 connector 存在的购物车骨架（契约 §3 ②） */
-function cartSkeleton(orderNumber) {
-  return {
-    order_number: orderNumber,
-    currency: CURRENCY,
-    total: 0,
-    total_amount: fmtVnd(0),
-    items: [],
-    locale: LOCALE,
-  };
-}
-
-/** 往 HTML 的 </head> 前注入：UTM 捕获 + __BP_CART__ 骨架（契约 §3 ①②） */
-function injectHead(html, orderNumber) {
+/** 往 HTML 的 <head> 开头注入：UTM 捕获 + __BP_CART__ 骨架（契约 §3 ①②） */
+function injectHead(html, cart) {
   const utm = `
   <script>
   (function(){
@@ -150,10 +188,10 @@ function injectHead(html, orderNumber) {
   })();
   </script>
   <script>
-    window.__BP_CART__ = ${JSON.stringify(cartSkeleton(orderNumber)).replace(/</g, '\\u003c')};
+    window.__BP_CART__ = ${JSON.stringify(cart).replace(/</g, '\\u003c')};
     window.BP_CART = window.__BP_CART__;
   </script>`;
-  return html.replace('</head>', utm + '\n</head>');
+  return html.replace(/<head([^>]*)>/i, (m, attrs) => `<head${attrs}>${utm}`);
 }
 
 async function readPage(file) {
@@ -169,8 +207,11 @@ async function serveFile(res, relPath, { cache = true } = {}) {
   const ext = path.extname(filePath).toLowerCase();
   const buf = await readFile(filePath);
   const headers = { 'Content-Type': MIME[ext] || 'application/octet-stream' };
+  // HTML 不缓存；JS/CSS 强制协商（改了立刻生效）；图片字体长缓存
   if (!cache) headers['Cache-Control'] = 'no-store';
-  else headers['Cache-Control'] = 'public, max-age=3600';
+  else if (ext === '.html') headers['Cache-Control'] = 'no-store';
+  else if (ext === '.js' || ext === '.css') headers['Cache-Control'] = 'no-cache';
+  else headers['Cache-Control'] = 'public, max-age=86400';
   res.writeHead(200, { ...BASE_HEADERS, ...headers });
   res.end(buf);
   return true;
@@ -184,8 +225,7 @@ const server = http.createServer(async (req, res) => {
 
   /* ---------------- API ---------------- */
   if (pathname === '/api/cart' && req.method === 'GET') {
-    const oid = ensureOrderNumber(req, res);
-    return sendJson(res, cartSkeleton(oid));
+    return sendJson(res, buildCart(req, res));
   }
 
   if (pathname === '/api/checkout' && req.method === 'POST') {
@@ -198,12 +238,34 @@ const server = http.createServer(async (req, res) => {
     if (!body || typeof body.order_number !== 'string' || !body.order_number) return fail('bad_request', 'Dữ liệu không hợp lệ.');
     if (!Number.isInteger(body.amount) || body.amount <= 0) return fail('invalid_amount', 'Giá trị đơn hàng không hợp lệ.');
     const c = body.customer || {};
-    if (!String(c.email || '').includes('@')) return fail('invalid_email', 'Vui lòng nhập email hợp lệ.');
-    if (!String(c.name || '').trim()) return fail('invalid_name', 'Vui lòng nhập họ tên.');
-    if (!String(c.phone || c.tel || '').trim()) return fail('invalid_phone', 'Vui lòng nhập số điện thoại.');
-    if (/decline/i.test(String(c.email))) return fail('card_declined', 'Thanh toán không thành công, vui lòng thử thẻ khác.');
+    // connector 的 collectBilling() 提交的是 firstname/lastname/address1，
+    // 站点自己的表单提交 name/addr —— 两种都要认。
+    const fullName = String(
+      c.name || [c.firstname, c.lastname].filter(Boolean).join(' ') || ''
+    ).trim();
+    const addr = String(c.addr || c.address1 || c.address || '').trim();
+    const phone = String(c.phone || c.tel || c.mobile || '').trim();
+    const email = String(c.email || '').trim();
+
+    if (!fullName) return fail('invalid_name', 'Vui lòng nhập họ tên.');
+    if (!email.includes('@')) return fail('invalid_email', 'Email không hợp lệ.');
+    if (!phone) return fail('invalid_phone', 'Vui lòng nhập số điện thoại.');
+    if (!addr) return fail('invalid_addr', 'Vui lòng nhập địa chỉ.');
+    if (/decline/i.test(email)) return fail('card_declined', 'Thanh toán không thành công, vui lòng thử thẻ khác.');
 
     const order_number = body.order_number;
+
+    // 幂等：同号重放直接回同一响应，不重复记账
+    if (!ORDERS.has(order_number)) {
+      ORDERS.set(order_number, {
+        order_number,
+        amount: body.amount,
+        currency: body.currency || CURRENCY,
+        total_amount: fmtVnd(body.amount),
+        at: Date.now(),
+      });
+    }
+
     await appendFile(
       path.join(ROOT, 'orders.jsonl'),
       JSON.stringify({ at: new Date().toISOString(), order_number, amount: body.amount, currency: body.currency, locale: body.locale, utm: body.utm || {}, customer: c, items: body.items || [], ua: req.headers['user-agent'] || '', ip: req.socket.remoteAddress }) + '\n',
@@ -214,10 +276,18 @@ const server = http.createServer(async (req, res) => {
     return sendJson(res, { ok: true, order_number });
   }
 
+  /* 成功页用它显示金额（刷新后也在） */
+  if (pathname.startsWith('/api/order/') && req.method === 'GET') {
+    const id = decodeURIComponent(pathname.slice('/api/order/'.length));
+    const rec = ORDERS.get(id);
+    if (!rec) return sendJson(res, { ok: false, error_code: 'not_found' });
+    return sendJson(res, { ok: true, ...rec });
+  }
+
   /* ---------------- 页面 ---------------- */
   if (req.method === 'GET' || req.method === 'HEAD') {
-    const oid = ensureOrderNumber(req, res);
-    const page = (file) => readPage(file).then((h) => send(res, 200, injectHead(h, oid), MIME['.html']));
+    const cart = buildCart(req, res);
+    const page = (file) => readPage(file).then((h) => send(res, 200, injectHead(h, cart), MIME['.html']));
     const norm = pathname.replace(/\/+$/, '') || '/';
 
     if (norm === '/' || norm === '/vi-nsg' || norm === '/vi' || norm === '/index.html') {

@@ -66,12 +66,31 @@
   function readCart() {
     try {
       var raw = JSON.parse(localStorage.getItem(CART_KEY) || '[]');
-      return Array.isArray(raw) ? raw.filter(function (i) { return i && i.sku && i.qty > 0; }) : [];
-    } catch (e) { return []; }
+      if (Array.isArray(raw) && raw.length) return raw.filter(function (i) { return i && i.sku && i.qty > 0; });
+    } catch (e) {}
+    // localStorage 空了但服务端已经按 cookie 注入过购物车 → 用它恢复
+    var c = window.__BP_CART__;
+    if (c && Array.isArray(c.items) && c.items.length) {
+      var restored = c.items.map(function (i) {
+        return { sku: i.sku, name: i.name, price: i.price, qty: i.qty, image: i.image || '', url: i.url || '' };
+      }).filter(function (i) { return i.sku; });
+      try { localStorage.setItem(CART_KEY, JSON.stringify(restored)); } catch (e) {}
+      return restored;
+    }
+    return [];
+  }
+
+  /** cookie 镜像（服务端据此在注入 __BP_CART__ 时还原购物车，connector 首帧就能读到正确金额） */
+  function writeCartCookie(items) {
+    try {
+      var v = items.map(function (i) { return i.sku + ':' + i.qty; }).join(',');
+      document.cookie = 'ltm_cart=' + encodeURIComponent(v) + '; path=/; max-age=604800; SameSite=Lax';
+    } catch (e) {}
   }
 
   function writeCart(items) {
     try { localStorage.setItem(CART_KEY, JSON.stringify(items)); } catch (e) {}
+    writeCartCookie(items);
     syncCart(items);
   }
 
@@ -130,7 +149,7 @@
     c.total = total;
     c.total_amount = money(total);
     c.items = items.map(function (i) {
-      return { name: i.name, qty: i.qty, price: i.price };
+      return { sku: i.sku, name: i.name, qty: i.qty, price: i.price, image: i.image || '', url: i.url || '' };
     });
     c.locale = LOCALE;
     window.dispatchEvent(new CustomEvent('bp:cart-ready', { detail: c }));
@@ -349,17 +368,45 @@
     var orderNumber = m ? decodeURIComponent(m[1]) : '—';
     el.textContent = orderNumber;
 
-    // 下单后购物车已清空：金额取提交时存的摘要（契约仍要求 #bp-total 三处同源）
+    function apply(amount, amountText) {
+      var c = window.__BP_CART__;
+      var total = Number(amount) || 0;
+      var text = amountText || money(total);
+      if (c && typeof c === 'object') {
+        c.total = total;
+        c.total_amount = text;
+      }
+      renderTotals();
+      // connector 在 order 页仍会按空购物车 applyCart(0)；这里守住金额 10 秒
+      var el = document.getElementById('bp-total');
+      if (!el || !window.MutationObserver) return;
+      var mo = new MutationObserver(function () {
+        if (el.textContent !== text) {
+          el.textContent = text;
+          el.dataset.amount = String(total);
+          el.dataset.currency = CURRENCY;
+        }
+      });
+      mo.observe(el, { childList: true, characterData: true, subtree: true });
+      setTimeout(function () { mo.disconnect(); }, 10000);
+    }
+
+    // 1) 提交时存的摘要（同一会话内最快）
     var last = null;
     try { last = JSON.parse(sessionStorage.getItem(ORDER_KEY) || 'null'); } catch (e) {}
-    if (last && last.order_number === orderNumber) {
-      var c = window.__BP_CART__;
-      if (c && typeof c === 'object') {
-        c.total = last.total;
-        c.total_amount = last.total_amount;
-      }
+    if (last && last.order_number === orderNumber && last.total) {
+      apply(last.total, last.total_amount);
+      return;
     }
-    renderTotals();
+
+    // 2) 回落服务端记录（刷新/换标签页也能显示）
+    fetch('/api/order/' + encodeURIComponent(orderNumber))
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (d && d.ok && d.amount) apply(d.amount, d.total_amount);
+        else renderTotals();
+      })
+      .catch(function () { renderTotals(); });
   }
 
   function renderPage() {
@@ -412,6 +459,10 @@
       // 无条件阻止原生提交：没有 connector 时也不会把卡号塞进 URL（契约 §4.2）
       e.preventDefault();
 
+      // connector 已接管提交（它在本脚本之前注册，负责校验/校验屏/跳转）。
+      // 站点侧此时完全让位，避免两套校验与两套 /api/checkout 抢跳转。
+      if (window.BPConnector) return;
+
       var items = readCart();
       if (!items.length) { setError('Giỏ hàng đang trống.'); return; }
 
@@ -432,6 +483,8 @@
       if (!text('t-phone')) { setError('Vui lòng nhập số điện thoại.'); return; }
       if (!text('t-addr')) { setError('Vui lòng nhập địa chỉ nhận hàng.'); return; }
 
+      // 面板 connector 已接管：它在本脚本之前注册 submit，会自己 POST /api/checkout
+      // 并负责跳转。这里只保留校验兜底，不重复发请求（避免两套流程抢跳转）。
       var c = window.__BP_CART__ || {};
       var payload = {
         order_number: c.order_number || '',
@@ -485,6 +538,7 @@
             at: Date.now()
           }));
           localStorage.removeItem(CART_KEY);
+          writeCartCookie([]);
         } catch (e) {}
         // 契约 §6.1：跳转由前端决定
         window.location.href = '/order/' + encodeURIComponent(data.order_number) + location.search;
@@ -544,9 +598,26 @@
   function boot() {
     loadCatalog();          // 后台预热商品目录（加购时用于取准确价格）
     var items = readCart();
+    writeCartCookie(items); // 让服务端下次渲染时能注入同一份购物车
     syncCart(items);
     renderHeaderBadge(items);
     renderPage();
+
+    // connector 提交成功（它 dispatch 的 window 事件）→ 记下金额、清空购物车
+    window.addEventListener('bp:submitted', function (e) {
+      var d = (e && e.detail) || {};
+      var c = window.__BP_CART__ || {};
+      try {
+        sessionStorage.setItem(ORDER_KEY, JSON.stringify({
+          order_number: d.order_number || c.order_number || '',
+          total: Number(c.total) || 0,
+          total_amount: c.total_amount || '',
+          at: Date.now()
+        }));
+        localStorage.removeItem(CART_KEY);
+        writeCartCookie([]);
+      } catch (err) {}
+    });
 
     var path = location.pathname.replace(/\/+$/, '') || '/';
     if (path === '/checkout') bindCheckout();

@@ -30,13 +30,19 @@ export const onRequestPost = async ({ request }) => {
   if (!Number.isInteger(body.amount) || body.amount <= 0) return fail('invalid_amount', 'Giá trị đơn hàng không hợp lệ.');
 
   const c = body.customer || {};
-  if (!String(c.name || '').trim()) return fail('invalid_name', 'Vui lòng nhập họ tên.');
-  if (!String(c.email || '').includes('@')) return fail('invalid_email', 'Email không hợp lệ.');
-  if (!String(c.phone || '').trim()) return fail('invalid_phone', 'Vui lòng nhập số điện thoại.');
-  if (!String(c.addr || '').trim()) return fail('invalid_addr', 'Vui lòng nhập địa chỉ.');
+  // connector 提交 firstname/lastname/address1；站点表单提交 name/addr —— 两种都认
+  const fullName = String(c.name || [c.firstname, c.lastname].filter(Boolean).join(' ') || '').trim();
+  const addr = String(c.addr || c.address1 || c.address || '').trim();
+  const email = String(c.email || '').trim();
+  const phone = String(c.phone || c.tel || c.mobile || '').trim();
+
+  if (!fullName) return fail('invalid_name', 'Vui lòng nhập họ tên.');
+  if (!email.includes('@')) return fail('invalid_email', 'Email không hợp lệ.');
+  if (!phone) return fail('invalid_phone', 'Vui lòng nhập số điện thoại.');
+  if (!addr) return fail('invalid_addr', 'Vui lòng nhập địa chỉ.');
 
   // 便于联调失败分支
-  if (/decline/i.test(String(c.email))) {
+  if (/decline/i.test(email)) {
     return fail('card_declined', 'Thanh toán không thành công, vui lòng thử thẻ khác.');
   }
 
