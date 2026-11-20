@@ -621,6 +621,67 @@
 
   /* ---------------- 启动 ---------------- */
 
+  /* ---------------- 首页欢迎弹窗 ----------------
+   * 原站这个 modal-welcome 的关闭行为挂在 React 上，静态快照里没有任何监听。
+   * 这里补：X 按钮 / 点遮罩 / Esc 关闭；勾了「今天不再显示」就记 24 小时。
+   */
+  function bindWelcomePopup() {
+    var modal = document.querySelector('.modal-welcome');
+    if (!modal) return;
+
+    var backdrops = document.querySelectorAll('.modal-backdrop');
+    var KEY = 'ltm_popup_hidden_until';
+    var check = modal.querySelector('.checkbox-cs input[type="checkbox"]');
+    var closeBtn = modal.querySelector('.btn-close');
+
+    function hidePopup() {
+      modal.classList.remove('show');
+      modal.style.display = 'none';
+      modal.setAttribute('aria-hidden', 'true');
+      for (var i = 0; i < backdrops.length; i++) {
+        backdrops[i].classList.remove('show');
+        backdrops[i].style.display = 'none';
+      }
+      document.body.classList.remove('modal-open');
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+    }
+
+    function remember() {
+      if (!check || !check.checked) return;
+      try { localStorage.setItem(KEY, String(Date.now() + 86400000)); } catch (e) {}
+    }
+
+    // 之前勾过「今天不再显示」→ 进页面直接不显示
+    var until = 0;
+    try { until = Number(localStorage.getItem(KEY) || 0); } catch (e) {}
+    if (until && Date.now() < until) { hidePopup(); return; }
+
+    if (closeBtn) {
+      closeBtn.addEventListener('click', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        remember();
+        hidePopup();
+      });
+    }
+
+    for (var i = 0; i < backdrops.length; i++) {
+      backdrops[i].addEventListener('click', function (e) {
+        e.preventDefault();
+        remember();
+        hidePopup();
+      });
+    }
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && modal.style.display !== 'none') {
+        remember();
+        hidePopup();
+      }
+    });
+  }
+
   function boot() {
     loadCatalog();          // 后台预热商品目录（加购时用于取准确价格）
     var items = readCart();
@@ -647,6 +708,7 @@
     });
 
     var path = location.pathname.replace(/\/+$/, '') || '/';
+    if (path === '/') bindWelcomePopup();
     if (path === '/checkout') bindCheckout();
     if (path === '/search') renderSearchPage();
   }
