@@ -961,8 +961,8 @@
       }
     }
 
-    // 画廊：所有主图换成该商品的图
-    var big = p.image_big || p.image;
+    // 画廊：所有主图换成该商品的图（用已下载的 300x300，0x0 大图没抓）
+    var big = p.image || p.image_big;
     if (big) {
       var gs = document.querySelectorAll('.swiper-gallery img, .product-img-slide-wrap img');
       for (var i = 0; i < gs.length; i++) {
@@ -974,6 +974,7 @@
       for (var j = 0; j < thumbs.length; j++) {
         thumbs[j].setAttribute('src', p.image || big);
         thumbs[j].removeAttribute('srcset');
+        if (thumbs[j].parentElement) thumbs[j].parentElement.style.backgroundImage = 'none';
       }
     }
 
@@ -981,13 +982,16 @@
     var viewed = document.querySelector('.product-custom .lbl-viewed');
     if (viewed) viewed.textContent = String(p.stock_qty || 0) + ' còn hàng';
 
-    // 描述
+    // 描述：有新数据就替换，没有就清空——绝不能露出模板商品的文案
     var desc = document.querySelector('.pro-tab-content .short-desc, .pro-tab-content');
-    if (desc && (p.short_description || p.usage_notes)) {
-      var text = (p.short_description || '') || (p.usage_notes || '');
-      if (text) {
-        desc.innerHTML = '<p>' + String(text).replace(/[<>]/g, '') + '</p>'
-          + (p.usage_notes && p.short_description ? '<p>' + String(p.usage_notes).replace(/[<>]/g, '') + '</p>' : '');
+    if (desc) {
+      var text = String(p.short_description || '').trim();
+      var usage = String(p.usage_notes || '').trim();
+      if (text || usage) {
+        desc.innerHTML = (text ? '<p>' + text.replace(/[<>]/g, '') + '</p>' : '')
+          + (usage && usage !== text ? '<p>' + usage.replace(/[<>]/g, '') + '</p>' : '');
+      } else {
+        desc.innerHTML = '<p>' + String(p.name).replace(/[<>]/g, '') + '</p>';
       }
     }
 
