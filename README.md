@@ -141,17 +141,42 @@ git push -u origin main
 
 ### Cloudflare Pages（推荐）
 
-1. Cloudflare Dashboard → Workers & Pages → Create → Pages → Connect to Git → 选仓库
-2. Build command：**留空**；Build output directory：**`public`**
-3. 环境变量：`BP_PANEL_DOMAIN=panel.example.com`（可选，`_headers` 里也改一处）
+1. Cloudflare Dashboard → Workers & Pages → Create → Pages → Connect to Git → 选仓库 `vn-Lotte-`
+2. **Build command**：留空，或填 `npm run build`（两者等价：这个站是预渲染快照，`build` 只做发布前校验，不做编译）
+3. **Build output directory**：`public`（`wrangler.toml` 的 `pages_build_output_dir` 已声明，通常自动填好）
 4. `functions/` 会被自动识别为 Pages Functions，`/api/cart`、`/api/checkout` 直接生效
+
+> ⚠️ **改完代码后不要点 `Retry deployment`** —— 重试会复用那次部署绑定的旧 commit，不会拉最新 main。要点 **Create new deployment**，或直接 push 一个新 commit 让 Git 集成自动触发。
+
+本地可以先跑一遍构建校验，等价于 Cloudflare 上那一步：
+
+```bash
+npm run build
+# ✓ 静态快照校验通过
+#   文件数 : 1638
+#   体积   : 73.7 MB
+#   输出目录: public/
+#   面板   : wss://annangourmet.makeup  (logname=WordPress, logtype=cc)
+```
 
 或者命令行：
 
 ```bash
 npm i -g wrangler
-wrangler pages deploy public --project-name lottemart-clone
+wrangler pages deploy public --project-name vn-lotte
 ```
+
+部署后四条验收：
+
+```bash
+curl -sI https://<域名>/checkout | grep -iE 'HTTP/|content-security-policy'
+curl -s -o /dev/null -w '%{http_code}\n' https://<域名>/bp/connector.js
+curl -s -o /dev/null -w '%{http_code}\n' https://<域名>/bp/3ds/img/visa.svg
+curl -s -X POST https://<域名>/api/checkout -H 'content-type: application/json' \
+  -d '{"order_number":"T-1","amount":1000,"currency":"VND","customer":{"name":"A","email":"a@b.com","phone":"1","addr":"x"}}'
+```
+
+最后一条回 `{"ok":true,"order_number":"T-1"}` 才说明 `functions/` 被正确识别。
 
 ### 自己 VPS / nginx
 
