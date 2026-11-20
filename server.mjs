@@ -296,15 +296,15 @@ const server = http.createServer(async (req, res) => {
       return page('index.html');
     }
     if (norm.startsWith('/vi-nsg/category/') || norm === '/vi-nsg/category' || norm === '/category') {
-      // 优先真实分类快照：public/vi-nsg/category/<slug>/index.html
+      // 真实分类快照：public/vi-nsg/category/<slug>.html
       const slug = norm.replace(/^\/vi-nsg\/category\/?/, '');
-      if (slug && (await serveFile(res, `vi-nsg/category/${slug}/index.html`))) return;
+      if (slug && (await serveFile(res, `vi-nsg/category/${slug}.html`))) return;
       return page('category.html');
     }
     if (norm.startsWith('/vi-nsg/product/') || norm === '/product') {
-      // 优先真实商品快照：public/vi-nsg/product/<slug>/index.html
+      // 真实商品快照：public/vi-nsg/product/<slug>.html
       const slug = norm.replace(/^\/vi-nsg\/product\/?/, '');
-      if (slug && (await serveFile(res, `vi-nsg/product/${slug}/index.html`))) return;
+      if (slug && (await serveFile(res, `vi-nsg/product/${slug}.html`))) return;
       return page('product.html');
     }
     if (norm === '/cart' || norm === '/vi-nsg/cart') {
@@ -324,7 +324,7 @@ const server = http.createServer(async (req, res) => {
     }
     // 其他 /vi-nsg/... 页面（静态内容页、专题落地页）：有快照就直出
     if (norm.startsWith('/vi-nsg/')) {
-      const rel = `${norm.replace(/^\//, '')}/index.html`;
+      const rel = `${norm.replace(/^\//, '')}.html`;
       if (await serveFile(res, rel)) return;
     }
     if (norm === '/sw.js' || norm === '/service-worker.js') {
