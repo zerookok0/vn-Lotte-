@@ -1,13 +1,17 @@
-# Cloudflare Pages 路由重写（200 = 内部重写，地址栏与 query 都保留）
+# Cloudflare Pages 路由重写
 #
-# 注意：/vi-nsg/product/* 与 /vi-nsg/category/* 不要写通配规则 ——
-# 每个商品/分类都有真实目录页（public/vi-nsg/product/<slug>/index.html），
-# 通配会把这些真实页面覆盖掉。
-/cart                /cart.html       200
-/checkout            /checkout.html   200
-/order/*             /order.html      200
-/search              /search.html     200
-/login               /login.html      200
-/vi-nsg/cart         /cart.html       200
-/vi-nsg/checkout     /checkout.html   200
-/vi-nsg/login        /login.html      200
+# ⚠️ 绝对不要写  /xxx  →  /xxx.html  200
+#    Pages 的 clean-URL 行为会把 /xxx.html 308 回 /xxx，和这条重写形成无限循环
+#    （ERR_TOO_MANY_REDIRECTS）。无扩展名的 /cart、/checkout 由 Pages 自动命中 xxx.html。
+#
+# ⚠️ 也不要给 /vi-nsg/product/* 和 /vi-nsg/category/* 写通配 ——
+#    每个商品/分类都有真实目录页（public/vi-nsg/<kind>/<slug>/index.html）。
+
+# 订单成功页：/order/<号> 没有实体文件，内部重写到无扩展名的 /order
+/order/*             /order        200
+
+# 兼容带 /vi-nsg 前缀的入口
+/vi-nsg/cart         /cart         200
+/vi-nsg/checkout     /checkout     200
+/vi-nsg/login        /login        200
+/vi-nsg/search       /search       200
