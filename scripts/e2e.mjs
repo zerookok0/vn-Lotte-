@@ -11,7 +11,7 @@ import path from 'node:path';
 
 const ROOT = path.resolve('.');
 const CHROME = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
-const BASE = 'http://127.0.0.1:8787';
+const BASE = process.argv[2] || 'http://127.0.0.1:8787';
 
 const browser = await chromium.launch({ executablePath: CHROME, headless: true });
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'vi-VN' });
