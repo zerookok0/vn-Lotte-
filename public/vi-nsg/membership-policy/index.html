@@ -1,0 +1,479 @@
+<!DOCTYPE html><html lang="vi" style=""><head>
+<script>
+/* [ltm-clone] 契约 §3 ①②：UTM 捕获 + 购物车骨架（构建时内联，不依赖服务端注入）
+   同步执行，必须排在 /bp/connector.js 之前。购物车从 cookie 还原，
+   这样 connector 第一次 getCart() 就能拿到正确金额。 */
+(function () {
+  var K = ['utm_source','utm_medium','utm_campaign','utm_term','utm_content','utm_id',
+           'fbclid','ttclid','gclid','adset_id','campaign_id','sub1','sub2','sub3','sub4','sub5'];
+
+  function cookie(name) {
+    var m = document.cookie.match(new RegExp('(?:^|;\\s*)' + name + '=([^;]+)'));
+    return m ? decodeURIComponent(m[1]) : '';
+  }
+  function grab(q) {
+    var o = {}, p = (q || '').replace(/^\?/, '').split('&');
+    for (var i = 0; i < p.length; i++) {
+      var kv = p[i].split('=');
+      if (kv.length < 2) continue;
+      try {
+        var k = decodeURIComponent(kv[0]);
+        if (K.indexOf(k) !== -1) o[k] = decodeURIComponent(kv.slice(1).join('='));
+      } catch (e) {}
+    }
+    return o;
+  }
+  function loadUTM() {
+    try { return JSON.parse(sessionStorage.getItem('bp_utm') || '{}'); } catch (e) { return {}; }
+  }
+  function utmSave(o) {
+    try { sessionStorage.setItem('bp_utm', JSON.stringify(o)); } catch (e) {}
+    try {
+      var d = new Date(); d.setTime(d.getTime() + 7 * 864e5);
+      document.cookie = 'bp_utm=' + encodeURIComponent(JSON.stringify(o)) +
+        '; expires=' + d.toUTCString() + '; path=/; SameSite=Lax';
+    } catch (e) {}
+  }
+
+  var cur = loadUTM(), add = false, m;
+  m = grab(location.search);
+  for (var a in m) { cur[a] = m[a]; add = true; }
+  try {
+    var nav = performance.getEntriesByType && performance.getEntriesByType('navigation')[0];
+    if (nav && nav.name) {
+      m = grab(nav.name.split('?')[1] || '');
+      for (var b in m) { cur[b] = m[b]; add = true; }
+    }
+  } catch (e) {}
+  try {
+    if (document.referrer) {
+      m = grab(document.referrer.split('?')[1] || '');
+      for (var c in m) { if (!cur[c]) { cur[c] = m[c]; add = true; } }
+    }
+  } catch (e) {}
+  if (add) utmSave(cur);
+  window.__BP_UTM__ = cur;
+  window.BP_UTM = cur;
+
+  /* ---- 购物车：cookie 里是 sku:qty:price,... ---- */
+  var raw = cookie('ltm_cart'), items = [], total = 0;
+  if (raw) {
+    var parts = raw.split(',');
+    for (var i = 0; i < parts.length && i < 50; i++) {
+      var seg = parts[i].split(':');
+      if (!seg[0]) continue;
+      var qty = parseInt(seg[1], 10) || 1;
+      var price = parseInt(seg[2], 10) || 0;
+      items.push({ sku: seg[0], name: '', qty: qty, price: price });
+      total += price * qty;
+    }
+  }
+  var amountText = '0 ₫';
+  try {
+    amountText = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 }).format(total) + ' ₫';
+  } catch (e) { amountText = String(total) + ' ₫'; }
+
+  window.__BP_CART__ = {
+    order_number: cookie('bp_oid') || '',
+    currency: 'VND',
+    total: total,
+    total_amount: amountText,
+    items: items,
+    locale: 'vi'
+  };
+  window.BP_CART = window.__BP_CART__;
+})();
+</script>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width"><meta property="og:title" content="LOTTE Mart Viet Nam"><meta name="description" content="Trang web/Ứng dụng Đi chợ Online chính thức của LOTTE Mart Việt Nam. Nhiều ưu đãi, mã giảm giá, voucher hấp dẫn."><meta property="og:image" content="/media/.thumbswysiwyg/review.png"><meta property="og:url" content=""><meta property="og:type" content="website" data-react-helmet="true"><meta name="zalo-platform-site-verification" content="KuxcTfJwGr9M-SDEa8Xn4XILzXZuwYD2CJC"><title>Điều Kiện Và Điều Khoản Chương Trình Khách Hàng Thành Viên</title><meta name="description" content="Điều Kiện Và Điều Khoản Chương Trình Khách Hàng Thành Viên"><meta name="application-name" content="LOTTE Mart Online"><meta property="og:title" content="Điều Kiện Và Điều Khoản Chương Trình Khách Hàng Thành Viên"><meta property="og:url" content="/vi-nsg/membership-policy"><meta property="og:description" content="Điều Kiện Và Điều Khoản Chương Trình Khách Hàng Thành Viên"><link rel="canonical" href="/vi-nsg/membership-policy"><meta name="copyright" content="© 2023 - Bản quyền của Công ty Cổ phần Trung Tâm Thương Mại LOTTE Việt Nam"><meta name="next-head-count" content="16"><link rel="manifest" href="/manifest.json"><link rel="icon" href="/media/favicon.ico"><meta name="theme-color" content="#fff"><link rel="stylesheet" type="text/css" href="/asset/css/bootstrap.min.css"><link rel="preload" href="/_next/static/media/8ff6965283b25d97-s.p.ttf" as="font" type="font/ttf" crossorigin="anonymous" data-next-font="size-adjust"><link rel="preload" href="/_next/static/media/a5947e779e3f9830-s.p.ttf" as="font" type="font/ttf" crossorigin="anonymous" data-next-font="size-adjust"><link rel="preload" href="/_next/static/media/bc297ed5b23d4574-s.p.ttf" as="font" type="font/ttf" crossorigin="anonymous" data-next-font="size-adjust"><link rel="preload" href="/_next/static/media/530bae4d999e632d-s.p.ttf" as="font" type="font/ttf" crossorigin="anonymous" data-next-font="size-adjust"><link rel="preload" href="/_next/static/css/bfe73692512055e8.css" as="style"><link rel="stylesheet" href="/_next/static/css/bfe73692512055e8.css" data-n-g=""><link rel="preload" href="/_next/static/css/375a85a193efa97a.css" as="style"><link rel="stylesheet" href="/_next/static/css/375a85a193efa97a.css"><noscript data-n-css=""></noscript><style>@font-face {
+  font-family: 'icomoon';
+  src: url(data:application/vnd.ms-fontobject;base64,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);
+  src: url(data:application/vnd.ms-fontobject;base64,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?#iefix) format('embedded-opentype'), url(data:font/ttf;base64,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) format('truetype'), url(data:font/woff;base64,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) format('woff'), url(data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBzdGFuZGFsb25lPSJubyI/Pg0KPCFET0NUWVBFIHN2ZyBQVUJMSUMgIi0vL1czQy8vRFREIFNWRyAxLjEvL0VOIiAiaHR0cDovL3d3dy53My5vcmcvR3JhcGhpY3MvU1ZHLzEuMS9EVEQvc3ZnMTEuZHRkIiA+DQo8c3ZnIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+DQo8bWV0YWRhdGE+R2VuZXJhdGVkIGJ5IEljb01vb248L21ldGFkYXRhPg0KPGRlZnM+DQo8Zm9udCBpZD0iaWNvbW9vbiIgaG9yaXotYWR2LXg9IjEwMjQiPg0KPGZvbnQtZmFjZSB1bml0cy1wZXItZW09IjEwMjQiIGFzY2VudD0iOTYwIiBkZXNjZW50PSItNjQiIC8+DQo8bWlzc2luZy1nbHlwaCBob3Jpei1hZHYteD0iMTAyNCIgLz4NCjxnbHlwaCB1bmljb2RlPSImI3gyMDsiIGhvcml6LWFkdi14PSI1MTIiIGQ9IiIgLz4NCjxnbHlwaCB1bmljb2RlPSImI3hlOTY3OyIgZ2x5cGgtbmFtZT0icm90YXRlLWxlZnQiIGQ9Ik03NjEuODYyLTY0YzExMy43MjYgMjA2LjAzMiAxMzIuODg4IDUyMC4zMDYtMzEzLjg2MiA1MDkuODI0di0yNTMuODI0bC0zODQgMzg0IDM4NCAzODR2LTI0OC4zNzJjNTM0Ljk2MiAxMy45NDIgNTk0LjU3LTQ3Mi4yMTQgMzEzLjg2Mi03NzUuNjI4eiIgLz4NCjxnbHlwaCB1bmljb2RlPSImI3hlOTY4OyIgZ2x5cGgtbmFtZT0icm90YXRlLXJpZ2h0IiBkPSJNNTc2IDcxMS42Mjh2MjQ4LjM3MmwzODQtMzg0LTM4NC0zODR2MjUzLjgyNGMtNDQ2Ljc1IDEwLjQ4Mi00MjcuNTg4LTMwMy43OTItMzEzLjg2LTUwOS44MjQtMjgwLjcxMiAzMDMuNDE0LTIyMS4xIDc4OS41NyAzMTMuODYgNzc1LjYyOHoiIC8+DQo8Z2x5cGggdW5pY29kZT0iJiN4ZTk4NDsiIGdseXBoLW5hbWU9InJlc2V0IiBkPSJNMTAyNCA1NzZoLTM4NGwxNDMuNTMgMTQzLjUzYy03Mi41MyA3Mi41MjYtMTY4Ljk2IDExMi40Ny0yNzEuNTMgMTEyLjQ3cy0xOTktMzkuOTQ0LTI3MS41My0xMTIuNDdjLTcyLjUyNi03Mi41My0xMTIuNDctMTY4Ljk2LTExMi40Ny0yNzEuNTNzMzkuOTQ0LTE5OSAxMTIuNDctMjcxLjUzYzcyLjUzLTcyLjUyNiAxNjguOTYtMTEyLjQ3IDI3MS41My0xMTIuNDdzMTk5IDM5Ljk0NCAyNzEuNTI4IDExMi40NzJjNi4wNTYgNi4wNTQgMTEuODYgMTIuMjkyIDE3LjQ1NiAxOC42NjhsOTYuMzItODQuMjgyYy05My44NDYtMTA3LjE2Ni0yMzEuNjY0LTE3NC44NTgtMzg1LjMwNC0xNzQuODU4LTI4Mi43NyAwLTUxMiAyMjkuMjMtNTEyIDUxMnMyMjkuMjMgNTEyIDUxMiA1MTJjMTQxLjM4NiAwIDI2OS4zNjgtNTcuMzI2IDM2Mi4wMTYtMTQ5Ljk4NGwxNDkuOTg0IDE0OS45ODR2LTM4NHoiIC8+DQo8Z2x5cGggdW5pY29kZT0iJiN4ZTljNzsiIGdseXBoLW5hbWU9ImRvd25sb2FkIiBkPSJNNzM2IDUxMmwtMjU2LTI1Ni0yNTYgMjU2aDE2MHYzODRoMTkydi0zODR6TTQ4MCAyNTZoLTQ4MHYtMjU2aDk2MHYyNTZoLTQ4MHpNODk2IDEyOGgtMTI4djY0aDEyOHYtNjR6IiAvPg0KPGdseXBoIHVuaWNvZGU9IiYjeGVhMGE7IiBnbHlwaC1uYW1lPSJ6b29tLWluIiBkPSJNOTkyIDU3NmgtMzUydjM1MmMwIDE3LjY3Mi0xNC4zMjggMzItMzIgMzJoLTE5MmMtMTcuNjcyIDAtMzItMTQuMzI4LTMyLTMydi0zNTJoLTM1MmMtMTcuNjcyIDAtMzItMTQuMzI4LTMyLTMydi0xOTJjMC0xNy42NzIgMTQuMzI4LTMyIDMyLTMyaDM1MnYtMzUyYzAtMTcuNjcyIDE0LjMyOC0zMiAzMi0zMmgxOTJjMTcuNjcyIDAgMzIgMTQuMzI4IDMyIDMydjM1MmgzNTJjMTcuNjcyIDAgMzIgMTQuMzI4IDMyIDMydjE5MmMwIDE3LjY3Mi0xNC4zMjggMzItMzIgMzJ6IiAvPg0KPGdseXBoIHVuaWNvZGU9IiYjeGVhMGI7IiBnbHlwaC1uYW1lPSJ6b29tLW91dCIgZD0iTTAgNTQ0di0xOTJjMC0xNy42NzIgMTQuMzI4LTMyIDMyLTMyaDk2MGMxNy42NzIgMCAzMiAxNC4zMjggMzIgMzJ2MTkyYzAgMTcuNjcyLTE0LjMyOCAzMi0zMiAzMmgtOTYwYy0xNy42NzIgMC0zMi0xNC4zMjgtMzItMzJ6IiAvPg0KPGdseXBoIHVuaWNvZGU9IiYjeGVhMGY7IiBnbHlwaC1uYW1lPSJjbG9zZSIgZD0iTTEwMTQuNjYyIDEzNy4zNGMtMC4wMDQgMC4wMDQtMC4wMDggMC4wMDgtMC4wMTIgMC4wMTBsLTMxMC42NDQgMzEwLjY1IDMxMC42NDQgMzEwLjY1YzAuMDA0IDAuMDA0IDAuMDA4IDAuMDA2IDAuMDEyIDAuMDEwIDMuMzQ0IDMuMzQ2IDUuNzYyIDcuMjU0IDcuMzEyIDExLjQxNiA0LjI0NiAxMS4zNzYgMS44MjQgMjQuNjgyLTcuMzI0IDMzLjgzbC0xNDYuNzQ2IDE0Ni43NDZjLTkuMTQ4IDkuMTQ2LTIyLjQ1IDExLjU2Ni0zMy44MjggNy4zMi00LjE2LTEuNTUtOC4wNzAtMy45NjgtMTEuNDE4LTcuMzEgMC0wLjAwNC0wLjAwNC0wLjAwNi0wLjAwOC0wLjAxMGwtMzEwLjY0OC0zMTAuNjUyLTMxMC42NDggMzEwLjY1Yy0wLjAwNCAwLjAwNC0wLjAwNiAwLjAwNi0wLjAxMCAwLjAxMC0zLjM0NiAzLjM0Mi03LjI1NCA1Ljc2LTExLjQxNCA3LjMxLTExLjM4IDQuMjQ4LTI0LjY4MiAxLjgyNi0zMy44My03LjMybC0xNDYuNzQ4LTE0Ni43NDhjLTkuMTQ4LTkuMTQ4LTExLjU2OC0yMi40NTItNy4zMjItMzMuODI4IDEuNTUyLTQuMTYgMy45Ny04LjA3MiA3LjMxMi0xMS40MTYgMC4wMDQtMC4wMDIgMC4wMDYtMC4wMDYgMC4wMTAtMC4wMTBsMzEwLjY1LTMxMC42NDgtMzEwLjY1LTMxMC42NTJjLTAuMDAyLTAuMDA0LTAuMDA2LTAuMDA2LTAuMDA4LTAuMDEwLTMuMzQyLTMuMzQ2LTUuNzYtNy4yNTQtNy4zMTQtMTEuNDE0LTQuMjQ4LTExLjM3Ni0xLjgyNi0yNC42ODIgNy4zMjItMzMuODNsMTQ2Ljc0OC0xNDYuNzQ2YzkuMTUtOS4xNDggMjIuNDUyLTExLjU2OCAzMy44My03LjMyMiA0LjE2IDEuNTUyIDguMDcwIDMuOTcgMTEuNDE2IDcuMzEyIDAuMDAyIDAuMDA0IDAuMDA2IDAuMDA2IDAuMDEwIDAuMDEwbDMxMC42NDggMzEwLjY1IDMxMC42NDgtMzEwLjY1YzAuMDA0LTAuMDAyIDAuMDA4LTAuMDA2IDAuMDEyLTAuMDA4IDMuMzQ4LTMuMzQ0IDcuMjU0LTUuNzYyIDExLjQxNC03LjMxNCAxMS4zNzgtNC4yNDYgMjQuNjg0LTEuODI2IDMzLjgyOCA3LjMyMmwxNDYuNzQ2IDE0Ni43NDhjOS4xNDggOS4xNDggMTEuNTcgMjIuNDU0IDcuMzI0IDMzLjgzLTEuNTUyIDQuMTYtMy45NyA4LjA2OC03LjMxNCAxMS40MTR6IiAvPg0KPGdseXBoIHVuaWNvZGU9IiYjeGVhMzQ7IiBnbHlwaC1uYW1lPSJuZXh0IiBkPSJNOTkyIDQ0OGwtNDgwIDQ4MHYtMjg4aC01MTJ2LTM4NGg1MTJ2LTI4OHoiIC8+DQo8Z2x5cGggdW5pY29kZT0iJiN4ZWEzODsiIGdseXBoLW5hbWU9InByZXYiIGQ9Ik0zMiA0NDhsNDgwLTQ4MHYyODhoNTEydjM4NGgtNTEydjI4OHoiIC8+DQo8Z2x5cGggdW5pY29kZT0iJiN4ZWE1ZjsiIGdseXBoLW5hbWU9InNjYWxlWSIgZD0iTTg5NiAxOTJoMTI4bC0xNjAtMTkyLTE2MCAxOTJoMTI4djUxMmgtMTI4bDE2MCAxOTIgMTYwLTE5MmgtMTI4ek02NDAgODk2di0yNTZsLTY0IDEyOGgtMTkydi03MDRoMTI4di02NGgtMzg0djY0aDEyOHY3MDRoLTE5MmwtNjQtMTI4djI1NnoiIC8+DQo8Z2x5cGggdW5pY29kZT0iJiN4ZWE2MDsiIGdseXBoLW5hbWU9InNjYWxlWCIgZD0iTTI1NiA2NHYtMTI4bC0xOTIgMTYwIDE5MiAxNjB2LTEyOGg1MTJ2MTI4bDE5Mi0xNjAtMTkyLTE2MHYxMjh6TTgzMiA4OTZ2LTI1NmwtNjQgMTI4aC0xOTJ2LTQ0OGgxMjh2LTY0aC0zODR2NjRoMTI4djQ0OGgtMTkybC02NC0xMjh2MjU2eiIgLz4NCjwvZm9udD48L2RlZnM+PC9zdmc+) format('svg');
+  font-weight: normal;
+  font-style: normal;
+}
+.react-viewer {
+  opacity: 0;
+}
+.react-viewer-inline {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 400px;
+}
+.react-viewer ul {
+  margin: 0;
+  padding: 0;
+}
+.react-viewer li {
+  list-style: none;
+}
+.react-viewer-mask {
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 0;
+  bottom: 0;
+  background-color: #373737;
+  background-color: rgba(55, 55, 55, 0.6);
+  height: 100%;
+  filter: alpha(opacity=50);
+  z-index: 1000;
+}
+.react-viewer-btn {
+  background-color: rgba(0, 0, 0, 0.5);
+  color: white;
+}
+.react-viewer-btn:hover {
+  background-color: rgba(0, 0, 0, 0.8);
+}
+.react-viewer-close {
+  position: fixed;
+  top: 0px;
+  right: 0px;
+  overflow: hidden;
+  width: 40px;
+  height: 40px;
+  border-radius: 0 0 0 40px;
+  cursor: pointer;
+  z-index: 1010;
+}
+.react-viewer-close > i {
+  position: relative;
+  top: 4px;
+  left: 18px;
+}
+.react-viewer-canvas {
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 0;
+  bottom: 0;
+  overflow: hidden;
+  z-index: 1005;
+}
+.react-viewer-canvas > img {
+  display: block;
+  width: auto;
+  height: auto;
+  -webkit-user-select: none;
+     -moz-user-select: none;
+      -ms-user-select: none;
+          user-select: none;
+}
+.react-viewer-canvas > img.drag {
+  cursor: move;
+}
+.react-viewer-footer {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  overflow: hidden;
+  text-align: center;
+  z-index: 1005;
+}
+.react-viewer-inline > .react-viewer-mask,
+.react-viewer-inline > .react-viewer-close,
+.react-viewer-inline > .react-viewer-canvas,
+.react-viewer-inline > .react-viewer-footer {
+  position: absolute;
+}
+.react-viewer-attribute {
+  margin: 0 20px;
+  margin-bottom: 6px;
+  opacity: 0.8;
+  color: #ccc;
+  font-size: 15px;
+}
+.react-viewer-showTotal {
+  float: right;
+}
+.react-viewer-toolbar {
+  overflow: hidden;
+  height: 28px;
+  margin-bottom: 6px !important;
+}
+.react-viewer-toolbar li {
+  display: inline-block;
+  width: 28px;
+  height: 28px;
+  border-radius: 28px;
+  margin-right: 3px;
+  cursor: pointer;
+  line-height: 28px;
+}
+.react-viewer-toolbar li:hover {
+  background-color: rgba(0, 0, 0, 0.8);
+}
+.react-viewer li.empty {
+  background-color: transparent;
+  cursor: default;
+}
+.react-viewer-navbar {
+  overflow: hidden;
+  background-color: rgba(0, 0, 0, 0.5);
+}
+.react-viewer-list {
+  height: 50px;
+  padding: 1px;
+  text-align: left;
+}
+.react-viewer-list > li {
+  display: inline-block;
+  width: 30px;
+  height: 50px;
+  cursor: pointer;
+  overflow: hidden;
+  margin-right: 1px;
+}
+.react-viewer-list > li > img {
+  width: 60px;
+  height: 50px;
+  margin-left: -15px;
+  opacity: 0.5;
+}
+.react-viewer-list > li.active > img {
+  opacity: 1;
+}
+.react-viewer-transition {
+  -webkit-transition: opacity 0.3s ease-out;
+  -o-transition: opacity 0.3s ease-out;
+  transition: opacity 0.3s ease-out;
+}
+.react-viewer-image-transition {
+  -webkit-transition-property: width, height, margin, -webkit-transform;
+  transition-property: width, height, margin, -webkit-transform;
+  -o-transition-property: width, height, margin, transform;
+  transition-property: width, height, margin, transform;
+  transition-property: width, height, margin, transform, -webkit-transform;
+  -webkit-transition-duration: 0.3s;
+       -o-transition-duration: 0.3s;
+          transition-duration: 0.3s;
+  -webkit-transition-timing-function: ease-out;
+       -o-transition-timing-function: ease-out;
+          transition-timing-function: ease-out;
+}
+.react-viewer-list-transition {
+  -webkit-transition: margin 0.3s ease-out;
+  -o-transition: margin 0.3s ease-out;
+  transition: margin 0.3s ease-out;
+}
+.react-viewer-icon {
+  font-family: 'icomoon' !important;
+  display: inline-block;
+  font-style: normal;
+  vertical-align: baseline;
+  text-align: center;
+  text-transform: none;
+  text-rendering: auto;
+  line-height: 1;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color: white;
+  font-size: 13px;
+}
+.react-viewer-icon-zoomIn:before {
+  content: '\ea0a';
+}
+.react-viewer-icon-zoomOut:before {
+  content: '\ea0b';
+}
+.react-viewer-icon-prev:before {
+  content: '\ea38';
+}
+.react-viewer-icon-next:before {
+  content: '\ea34';
+}
+.react-viewer-icon-close:before {
+  content: '\ea0f';
+}
+.react-viewer-icon-rotateLeft:before {
+  content: '\e967';
+}
+.react-viewer-icon-rotateRight:before {
+  content: '\e968';
+}
+.react-viewer-icon-reset:before {
+  content: '\e984';
+}
+.react-viewer-icon-scaleX:before {
+  content: '\ea60';
+}
+.react-viewer-icon-scaleY:before {
+  content: '\ea5f';
+}
+.react-viewer-icon-download:before {
+  content: '\e9c7';
+}
+.circle-loading {
+  -webkit-box-sizing: border-box;
+          box-sizing: border-box;
+  width: 80px;
+  height: 80px;
+  border-radius: 100%;
+  border: 10px solid rgba(255, 255, 255, 0.2);
+  border-top-color: #FFF;
+  -webkit-animation: spin 1s infinite linear;
+          animation: spin 1s infinite linear;
+}
+@-webkit-keyframes spin {
+  100% {
+    -webkit-transform: rotate(360deg);
+            transform: rotate(360deg);
+  }
+}
+@keyframes spin {
+  100% {
+    -webkit-transform: rotate(360deg);
+            transform: rotate(360deg);
+  }
+}
+</style>
+  <!-- clone runtime -->
+  <link rel="stylesheet" href="/assets/clone.css">
+  <link rel="stylesheet" href="/bp/connector.css">
+  <script defer src="/bp/connector.js"></script>
+  <script defer src="/assets/clone.js"></script>
+</head><body class="__className_04b26a"><div id="__next" class="app-layout page single-page"><div class="header-type"><div class="container"><h1 class="logo"><a title="LOTTE Mart" href="/"><span>LOTTE Mart</span></a></h1></div></div><main class="main"><div class="container"><div class="page-title"><h2>Điều Kiện Và Điều Khoản Chương Trình Khách Hàng Thành Viên</h2></div><div class="row justify-content-center"><div class="col-12 col-lg-8"><div class="static-content"><p><strong><img src="/media/wysiwyg/ThuyMart/DAC-QUYEN-TV-2026-SOCIAL_post_0-1536x1024.jpg" alt="" width="1366" height="911"></strong></p>
+<p><strong>Điều 1: Mục đích</strong></p>
+<p>Mục đích của Điều kiện và Điều khoản này (sau đây gọi tắt là “Điều kiện và Điều khoản”) để quy định các quyền và nghĩa vụ của các Thành viên (như được định nghĩa dưới đây) và Công ty Cổ phần Trung tâm Thương mại LOTTE Việt Nam (sau đây gọi tắt là “Công ty”) và các thủ tục để tham gia Chương trình Khách hàng Thành viên của Công ty (sau đây gọi tắt là “Chương trình”).</p>
+<p>&nbsp;</p>
+<p><strong>Điều 2: Định nghĩa</strong></p>
+<ol>
+<li>“Thành viên” là khách hàng đã đồng ý Điều kiện và Điều khoản này, đã đăng ký hợp lệ tham gia Chương trình và đã sở hữu Thẻ Thành viên LOTTE MART (sau đây gọi tắt là “Thẻ Thành viên”).</li>
+<li>“Thẻ Thành viên” là thẻ được chính Công ty cung cấp cho Thành viên nhằm sử dụng trong Chương trình, bao gồm thẻ vật lý và/hoặc barcode Thẻ Thành viên trong tài khoản trực tuyến của Thành viên trên Ứng dụng mua sắm trực tuyến LOTTE MART hoặc website www.lottemart.vn của Công ty.</li>
+<li>“Chương trình” nghĩa là Chương trình Khách hàng Thành viên do Công ty cấp cho các Thành viên được quy định tại Điều 3 của Điều kiện và Điều khoản này.</li>
+<li>“Điểm tích lũy” nghĩa là điểm được cấp cho Thành viên theo tỷ lệ quy định do Công ty thông báo khi Thành viên mua sắm các sản phẩm hoặc sử dụng dịch vụ từ Công ty.</li>
+<li>“Điểm thưởng” nghĩa là điểm được tặng thêm cho Thành viên khi Thành viên thỏa mãn điều kiện của các chương trình khuyến mãi, chương trình marketing của Công ty.</li>
+<li>“Điểm khả dụng” nghĩa là Điểm tích lũy và Điểm thưởng (nếu có) cộng dồn sau khi trừ số điểm đã sử dụng, đáp ứng các tiêu chuẩn do Công ty đặt ra để Thành viên có thể mua sắm các sản phẩm, sử dụng dịch vụ, đổi quà tặng,…từ Công ty.</li>
+<li>“Thay đổi Chương trình” nghĩa là Chương trình sẽ được thay đổi, cập nhật tùy theo điều kiện và chính sách của Công ty theo từng thời điểm (Chi tiết tham khảo Điều 11 của Điều kiện và Điều khoản này). Sau khi thay đổi, Thành viên vẫn có thể tiếp tục tham gia vào Chương trình nếu đáp ứng đủ điều kiện để duy trì tư cách Thành viên.</li>
+</ol>
+<p>&nbsp;</p>
+<p><strong>Điều 3: Chương trình</strong></p>
+<p>Công ty cung cấp cho các Thành viên một hoặc nhiều nội dung của Chương trình như sau:</p>
+<ol>
+<li>Chương trình tích điểm và sử dụng điểm: Thành viên có thể tích điểm và sử dụng điểm được tích luỹ thông qua việc mua sắm các sản phẩm, sử dụng dịch vụ từ Công ty theo Điều kiện và Điều khoản này hoặc được cập nhật và đăng tải, thông báo công khai tại từng thời điểm.</li>
+<li>Chương trình ưu đãi: Thành viên có thể tham gia các chương trình khuyến mãi, giảm giá hoặc nhận quà tặng do Công ty cung cấp.</li>
+<li>Các chương trình khác: Công ty có thể phát triển thêm những chương trình khác để phục vụ Thành viên.</li>
+</ol>
+<p><strong>Điều 4: Chấp nhận tư cách Thành viên</strong></p>
+<ol>
+<li>Mọi công dân Việt Nam có Chứng minh nhân dân (CMND) hoặc Căn cước công dân (CCCD) hoặc người nước ngoài có hộ chiếu hợp lệ (Passport) từ đủ 18 tuổi trở lên đều có quyền đăng ký trở thành Thành viên và tham gia Chương trình.</li>
+<li>Khách hàng có đủ điều kiện nêu tại Điều 4.1 mong muốn trở thành Thành viên có thể đăng ký Thành viên bằng cách điền các thông tin bắt buộc vào phần đăng ký trên Ứng dụng mua sắm trực tuyến LOTTE MART hoặc website www.lottemart.vn của Công ty và đồng ý với các Điều kiện và Điều khoản của Chương trình.</li>
+<li>Sau khi nhận được yêu cầu đăng ký Thành viên từ khách hàng, Công ty sẽ tiến hành xem xét và <span style="text-decoration: underline;">cấp Thẻ Thành viên</span> dạng mã vạch trên ứng dụng khi khách hàng đáp ứng đầy đủ tiêu chí tham gia theo Điều kiện và Điều khoản này.</li>
+</ol>
+<p>&nbsp;</p>
+<p><strong>Điều 5: Sử dụng và quản lí Thẻ Thành viên</strong></p>
+<ol>
+<li>Thành viên phải xuất trình Thẻ Thành viên khi tham gia Chương trình. Công ty có quyền đề nghị Thành viên cung cấp thông tin họ và tên đã đăng ký và/hoặc xuất trình giấy tờ cá nhân hợp lệ (Chứng minh nhân dân/Căn cước công dân/Căn cước/ thông tin trên Ứng dụng định danh…) trước khi sử dụng điểm và/hoặc được nhận các ưu đãi trong một số trường hợp theo Điều kiện và Điều khoản này trong quá trình tham gia Chương trình.</li>
+<li>Thành viên hiểu, cam kết và bảo đảm là chủ sở hữu hợp pháp và duy nhất của Thẻ Thành viên, có trách nhiệm tự bảo quản Thẻ Thành viên và bảo mật thông tin tài khoản của mình. Thẻ Thành viên chỉ được sử dụng bởi chính Thành viên đó và không được cho mượn, chuyển giao hay uỷ quyền cho người khác sử dụng hoặc làm tài sản bảo đảm mà không có sự đồng ý trước của Công ty. Thành viên chịu trách nhiệm đối với bất kỳ hệ quả phát sinh từ sự bất cẩn trong việc bảo quản Thẻ Thành viên của mình.Trong khả năng hợp lý của mình, Công ty sẽ phối hợp và hỗ trợ Thành viên nhằm hạn chế thiệt hại và bảo vệ quyền lợi hợp pháp của Thành viên.</li>
+<li>Nếu Thẻ Thành viên bị hư hại, bị mất hoặc bị trộm, Thành viên đó phải có trách nhiệm thông báo ngay cho Công ty. Khi nhận được thông báo Công ty sẽ thực hiện các biện pháp cần thiết như tiến hành xác thực, kiểm tra, thay đổi trạng thái sử dụng Thẻ Thành viên của Thành viên đó (nếu cần). Đối với các thiệt hại phát sinh trước thời điểm Thành viên thực hiện việc thông báo theo quy định tại Điều này, hoặc trong quá trình Công ty tiến hành các biện pháp cần thiết nêu trên, Công ty sẽ xem xét hỗ trợ giải quyết trên cơ sở (i) thiệt hại thực tế được chứng minh hợp lệ, (ii) chính sách hiện hành của Công ty đã được công bố và (iii) trong phạm vi khả năng kiểm soát hợp lý của Công ty theo quy định pháp luật.</li>
+</ol>
+<p><strong>Điều 6: Rút và hủy tư cách Thành viên</strong></p>
+<ol>
+<li>Vào bất cứ thời điểm nào, Thành viên có thể hủy việc chấp thuận Điều kiện và Điều khoản bằng cách rút tư cách Thành viên thông qua văn bản, tổng đài, email hoặc các kênh tương tác khác của Chương trình.</li>
+<li>Nếu một Thành viên qua đời, tư cách Thành viên của Thành viên đó sẽ tự động bị huỷ.</li>
+<li>Trừ trường hợp tại Điều 6.2, Công ty có thể huỷ tư cách Thành viên bằng cách thông báo cho Thành viên bằng văn bản,&nbsp;tổng đài, tin nhắn điện thoại, email hoặc các kênh tương tác khác trong các trường hợp sau:<br>a. Thành viên đăng ký thông tin không chính xác hoặc dùng thông tin giả mạo, thông tin cá nhân của người khác để đăng ký.<br>b. Thành viên sử dụng Chương trình trái luật hoặc với mục đích không phù hợp như tích điểm và sử dụng điểm không đúng, gian lận hoặc lợi dụng Chương trình vì mục đích cá nhân.<br>c. Thành viên có liên quan tới hoặc thực hiện những hành vi trái với trật tự công cộng và truyền thống đạo đức như ngăn cản các Thành viên khác sử dụng Thẻ Thành viên hay lạm dụng các thông tin liên quan Thẻ Thành viên đó vì mục đích cá nhân.</li>
+<li>Việc rút tư cách Thành viên theo quy định tại Điều 6.1 hoặc việc huỷ tư cách Thành viên theo Điều 6.2 và Điều 6.3 sẽ được tiến hành như sau:<br>a. Đối với trường hợp Thành viên yêu cầu rút tư cách Thành viên: Sau khi nhận được yêu cầu rút tư cách Thành viên Công ty sẽ xác thực, kiểm tra và thực hiện biện pháp cần thiết để rút tư cách Thành viên theo yêu cầu của Thành viên đó hoặc từ chối yêu cầu rút tư cách Thành viên nếu nhận thấy có dấu hiệu sai phạm, gian lận hoặc lợi dụng Chương trình vì mục đích cá nhân.<br>b. Đối với trường hợp Thành viên qua đời: Tư cách của Thành viên sẽ được hủy vào ngày Công ty biết được việc qua đời của Thành viên.<br>c. Đối với trường hợp hủy tư cách Thành viên: Khi phát hiện Thành viên có dấu hiệu vi phạm các quy định nêu tại Điều 6.3,&nbsp;Công ty sẽ gửi thông báo cho Thành viên&nbsp;thông qua văn bản, tổng đài, tin nhắn điện thoại, email hoặc các kênh tương tác khác. Trong vòng 72 giờ kể từ thời điểm gửi thông báo, Thành viên có quyền phản hồi hoặc cung cấp thông tin liên quan. Sau khi xem xét, nếu xác định vi phạm là có căn cứ, Công ty sẽ thông báo nêu rõ lý do và tiến hành hủy tư cách Thành viên theo quy định Điều kiện và Điều khoản này. Thành viên có quyền khiếu nại hoặc yêu cầu Công ty xem xét lại quyết định trong thời hạn 03 ngày kể từ ngày nhận được thông báo.</li>
+</ol>
+<p><strong>Điều 7: Xử lý điểm khi rút hoặc hủy tư cách Thành viên</strong></p>
+<p>Sau khi rút hoặc hủy tư cách Thành viên như quy định tại Điều 6, Thành viên có thể đã không sử dụng hết số Điểm khả dụng vào ngày xử lý rút hoặc hủy tư cách Thành viên. Việc xử lý điểm sau khi rút hoặc hủy tư cách Thành viên sẽ được xử lý như sau:</p>
+<ol>
+<li>Trường hợp rút tư cách Thành viên do Thành viên chủ động yêu cầu theo Điều 6.1: Khi xử lý rút tư cách Thành viên thì mọi số Điểm khả dụng mà Thành viên này đang sở hữu sẽ tự động hết hạn.</li>
+<li>Trường hợp hủy tư cách Thành viên do qua đời (Điều 6.2) hoặc do Công ty quyết định hủy tư cách Thành viên (Điều 6.3): Khi xử lý hủy tư cách Thành viên thì mọi số Điểm khả dụng mà Thành viên này đang sở hữu sẽ tự động hết hạn.</li>
+<li>Mọi số Điểm khả dụng sẽ không được khôi phục sau ngày xử lý rút hoặc hủy tư cách trong bất cứ tình huống nào.</li>
+</ol>
+<p><strong>Điều 8: Các loại điểm và thời hạn sử dụng điểm</strong></p>
+<ol>
+<li>Khi Thành viên mua hàng hoá hay sử dụng dịch vụ do Công ty cung cấp sẽ được cấp điểm theo phương thức tính tại Điều 8.2 và Phụ Lục 1. Thành viên sẽ thanh toán các khoản chi phí, thuế phát sinh từ việc Thành viên được hưởng các lợi ích từ Chương trình.</li>
+<li>Điểm tích lũy = (Giá mua hàng hoá hoặc sử dụng dịch vụ – Khoản được thanh toán bằng Điểm khả dụng – Khoản giảm giá) x Tỷ lệ tích điểm được công bố theo Phụ lục 1.</li>
+<li>Tỷ lệ quy đổi điểm khi sử dụng: 1 điểm = 1 Việt Nam đồng và tỷ lệ này có thể được điều chỉnh bởi Công ty tại từng thời điểm, phù hợp với chính sách và thông báo công khai tới Thành viên. Việc điều chỉnh chỉ áp dụng đối với số Điểm phát sinh sau thời điểm chính sách mới có hiệu lực và được công khai.</li>
+<li>Thành viên có thể sử dụng Điểm khả dụng theo tiêu chuẩn và cách thức mà Công ty quy định.</li>
+<li>Điểm tích lũy trước ngày 31 tháng 3 năm 2024 có thời hạn sử dụng là hai mươi bốn (24) tháng kể từ ngày tích lũy.<br>Điểm tích lũy từ ngày 01 tháng 4 năm 2024 có thời hạn sử dụng từ ngày được tích lũy cho đến hết ngày 30 tháng 06 năm 2026.<br>Sau ngày 30 tháng 06 năm 2026, toàn bộ điểm được tích lũy từ trước ngày 31 tháng 12 năm 2025 sẽ tự động hết hạn sử dụng và sẽ được xóa khỏi Thẻ Thành Viên.<br>Điểm tích lũy từ sau ngày 31 tháng 12 năm 2025 vẫn được bảo lưu và khả dụng cho đến hết ngày 31 tháng 03 năm 2027, trừ trường hợp quy định tại Điều 7 và Điều 12 của Điều kiện và Điều khoản này</li>
+<li>Điểm khả dụng sẽ bị hủy vĩnh viễn và không thể thu hồi sau khi hết thời hạn sử dụng điểm. Công ty sẽ thông báo số điểm hết hạn theo chính sách hiện hành thông qua mục “Lịch sử điểm” trên ứng dụng định kỳ vào ngày 01 hàng tháng. Khách hàng cần chủ đông theo dõi và sử dụng số điểm khả dụng còn lại của mình trước thời điểm hết hạn để đảm bảo quyền lợi của mình.<br>Trong trường hợp có khiếu nại về điểm hết hạn, Công ty sẽ tiếp nhận và xem xét xử lý theo chính sách công bố tại từng thời điểm và trong phạm vi khả năng kiểm soát hợp lý.</li>
+</ol>
+<p><strong>Điều 9: Cập nhật thông tin Thành viên</strong></p>
+<ol>
+<li>Thành viên có thể tự truy cập thông tin cá nhân của mình thông qua mục “Thông tin của tôi” trên Ứng dụng mua sắm trực tuyến LOTTE Mart hoặc website&nbsp;<a href="/" target="_blank" rel="noopener nofollow">www.lottemart.vn</a>&nbsp;của Công ty, hoặc liên hệ trực tiếp Trung tâm Chăm sóc Khách hàng.</li>
+<li>Nếu Thành viên thấy bất kì lỗi nào về thông tin cá nhân của mình hoặc trường hợp thông tin của Thành viên (số điện thoại/email/,…) có thay đổi so với thông tin đã đăng ký với Chương trình, Thành viên có nghĩa vụ trực tiếp cập nhật thông tin thay đổi hoặc thông báo cho Công ty về việc yêu cầu cập nhật thông tin thông qua tổng đài, email, hoặc các kênh tương tác khác của Chương trình. Sau khi xem xét và xác thực, Công ty có thể tiến hành sửa đổi, cập nhật thông tin theo yêu cầu của Thành viên hoặc từ chối sửa đổi, cập nhật nếu nhận thấy có dấu hiệu gian lận, vi phạm Điều kiện và Điều khoản. Các thiệt hại phát sinh do thông tin chưa được cập nhật kịp thời theo quy định tại Điều khoản này, do lỗi của Thành viên, sẽ không thuộc phạm vi bồi thường của Công ty. Công ty sẽ tiếp tục hỗ trợ Thành viên trong phạm vi khả năng hợp lý để hạn chế ảnh hưởng phát sinh.</li>
+</ol>
+<p><strong>Điều 10: Xử lý dữ liệu cá nhân của Thành Viên</strong></p>
+<p>Việc thu thập và xử lý các thông tin cá nhân thu thập được từ Thành viên hoặc ủy nhiệm cho bên thứ ba để tiến hành tất cả hay một phần việc xử lý và quản lý thông tin cá nhân được tuân thủ theo Chính sách Bảo Mật Dữ Liệu Cá Nhân Dành Cho Khách Hàng hiện hành hoặc được cập nhật, đăng tải và thông báo công khai tại từng thời điểm.</p>
+<p><strong>Điều 11: Thay đổi Chương trình</strong></p>
+<ol>
+<li>Nội dung chi tiết về Chương trình nêu tại Điều 3 do Công ty cung cấp cho Thành viên có thể thay đổi tùy theo điều kiện và chính sách của Công ty tại từng thời điểm. Nội dung thay đổi, cập nhật này sẽ có hiệu lực sau 72 giờ kể từ thời điểm được đăng tải, thông báo công khai trên website https://lottemart.com.vn và https://lottemart.vn/ của Công ty.</li>
+<li>Trường hợp Chương trình được sửa đổi, cập nhật như quy định tại Điều 11.1, Thành viên có quyền lựa chọn tiếp tục tham gia hoặc chấm dứt việc tham gia Chương trình được thay đổi, cập nhật. Quyền lợi đã phát sinh và Điểm khả dụng của Thành viên trước thời điểm thay đổi sẽ được bảo lưu và xử lý theo Điều kiện và Điều khoản này.</li>
+</ol>
+<p><strong>Điều 12: Chấm dứt Chương trình</strong></p>
+<ol>
+<li>Công ty có quyền chấm dứt Chương trình tại mọi thời điểm nào nhưng phải gửi thông báo cho Thành viên (sau đây gọi tắt là “Thông báo”) trước ít nhất mười lăm (15) ngày kể từ ngày mà Công ty dự định sẽ chấm dứt Chương trình bằng cách sử dụng một hoặc nhiều phương thức sau:<br>a. Thông báo bằng văn bản trên website https://lottemart.com.vn và https://lottemart.vn/ của Công ty;<br>b. Thông báo tại các cửa hàng của Công ty;<br>c. Thông báo bằng email;<br>d. Thông báo bằng tin nhắn điện thoại;</li>
+<li>Các Thành viên sẽ không được tham gia Chương trình sau ngày chấm dứt Chương trình và có thể sử dụng số Điểm khả dụng và/hoặc những ưu đãi/ khuyến mãi cho đến ngày chấm dứt Chương trình. Bất cứ Điểm khả dụng và/hoặc những ưu đãi/ khuyến mãi nào không được sử dụng cho đến ngày chấm dứt Chương trình sẽ bị hết hạn và Công ty không phải bồi hoàn lại cho Thành viên bằng bất kỳ hình thức nào.</li>
+</ol>
+<p><strong>Điều 13: Sửa đổi Điều kiện và Điều khoản</strong></p>
+<p>Tại từng thời điểm, Công ty có quyền sửa đổi, cập nhật Điều kiện và Điều khoản này. Điều kiện và Điều khoản sửa đổi sẽ có hiệu lực sau 72 giờ kể từ thời điểm được thông báo công khai trên website https://lottemart.com.vn và https://lottemart.vn/ của Công ty. Bất cứ Thành viên nào không đồng ý việc sửa đổi Điều kiện và Điều khoản có thể xin rút tư cách Thành viên của mình theo quy định tại Điều 7.1 của Điều kiện và Điều khoản này. Sau khi Công ty đã thông báo công khai trên website https://lottemart.com.vn và https://lottemart.vn/ của Công ty, nếu Thành viên không có yêu cầu xin rút tư cách Thành viên và tiếp tục mua hàng hóa, sử dụng dịch vụ, thực hiện truy cập, giao dịch trên Ứng dụng mua sắm trực tuyến LOTTE MART hoặc website www.lottemart.vn của Công ty, hay tại cửa hàng của Công ty, Thành viên được hiểu là đã đồng ý với nội dung và chấp nhận việc sửa đổi, bổ sung và/hoặc cập nhật đó.</p>
+<p><strong>Điều 14: Các nội dung không được quy định trong Điều kiện và Điều khoản này</strong></p>
+<p>Các nội dung không được quy định trong Điều kiện và Điều khoản này và việc diễn giải, điều chỉnh nội dung các Điều kiện và Điều khoản này sẽ được hiểu theo các quy định pháp luật có liên quan và tập quán kinh doanh thương mại của Việt Nam.</p>
+<p><strong>Điều 15: Trách nhiệm khi vi phạm Điều khoản</strong></p>
+<p>Bên vi phạm Điều kiện và Điều khoản này có trách nhiệm bồi thường cho bên còn lại về các thiệt hại phát sinh từ việc vi phạm này theo quy định của pháp luật Việt Nam.</p>
+<p><strong>Điều 16: Thẩm quyền giải quyết tranh chấp</strong></p>
+<p>Nếu có tranh chấp nào phát sinh liên quan đến Điều kiện và Điều khoản này, các bên liên quan đến tranh chấp có trách nhiệm cố gắng giải quyết bằng cách thương lượng và hòa giải. Nếu các bên liên quan không thể giải quyết tranh chấp trong vòng ba mươi (30) ngày kể từ ngày tranh chấp xảy ra thì tranh chấp sẽ được bất kỳ bên nào đưa ra giải quyết tại tòa án có thẩm quyền theo quy định pháp luật.</p>
+<p style="text-align: center;"><strong>PHỤ LỤC 1: CHÍNH SÁCH PHÂN HẠNG THÀNH VIÊN</strong></p>
+<p><strong>Điều 1: Tiêu chuẩn phân hạng Thành viên</strong></p>
+<p>Thành viên có sử dụng Thẻ Thành viên khi mua sắm tại LOTTE Mart sẽ áp dụng tiêu chuẩn phân hạng Thành viên như sau:</p>
+<table width="100%">
+<tbody>
+<tr>
+<td width="31%"><strong>Hạng Thành viên</strong></td>
+<td width="20%"><strong>Silver</strong></td>
+<td width="24%"><strong>Gold</strong></td>
+<td width="22%"><strong>Platinum</strong></td>
+<td width="18%"><strong>Diamond</strong></td>
+</tr>
+<tr>
+<td width="31%">Tỷ lệ tích điểm</td>
+<td width="20%">0.1%</td>
+<td width="24%">0.5%</td>
+<td width="22%">1%</td>
+<td width="18%">1.5%</td>
+</tr>
+<tr>
+<td width="31%">Chỉ tiêu tích lũy trong 03 tháng</td>
+<td width="20%">Dưới 600.000 đồng</td>
+<td width="24%">Từ 600.000 đồng – dưới 3.000.000 đồng</td>
+<td width="22%">Từ 3.000.000 đồng</td>
+<td width="18%">Từ 10.000.000 đồng</td>
+</tr>
+<tr>
+<td width="31%">Chỉ tiêu giao dịch trong 03 tháng</td>
+<td width="20%">Từ 01 giao dịch</td>
+<td width="24%">Từ 03 – 05 giao dịch</td>
+<td width="22%">Từ 06 giao dịch</td>
+<td width="18%">Từ 10 giao dịch</td>
+</tr>
+</tbody>
+</table>
+<p>(*) Giao dịch: là giao dịch mua sắm tại khu vực tự chọn của LOTTE MART có sử dụng Thẻ Thành viên để tích điểm.</p>
+<p><strong>Điều 2. Quy định phân hạng</strong></p>
+<ol>
+<li>Thời gian xét duyệt: Thành viên sẽ được xét duyệt phân hạng theo định kỳ ba (03) tháng một (01) lần.</li>
+<li>Phân hạng Thành viên sẽ dựa trên lịch sử giao dịch tại LOTTE MART theo tiêu chuẩn phân hạng Thành viên tại Điều 1. Tỷ lệ tích điểm áp dụng cho Thành viên trong ba (03) tháng kế tiếp sẽ được xét duyệt dựa trên lịch sử giao dịch của ba (03) tháng liền kề trước đó.</li>
+<li>Hạng Thành viên có thể thay đổi theo từng kỳ phân hạng.</li>
+<li>Thành viên Diamond duy trì hạng Diamond trong lần xét duyệt phân hạng kế tiếp sẽ được tặng 30.000 điểm.</li>
+<li>Thành viên Platinum, Gold và Silver thăng hạng Diamond sẽ được tặng 50.000 điểm trong lần xét duyệt phân hạng kế tiếp, áp dụng cho lần thăng hạng đầu tiên trong năm.</li>
+<li>Thành viên Gold và Silver thăng hạng Platinum sẽ được tặng 30.000 điểm trong lần xét duyệt phân hạng kế tiếp, áp dụng cho lần thăng hạng đầu tiên trong năm.</li>
+<li>Thành viên Diamond sẽ được tặng 100.000 điểm, thành viên Platinum sẽ được tặng 50.000 điểm vào ngày sinh nhật của Thành Viên.</li>
+</ol>
+<p><strong>Điều 3. Quy định chung</strong></p>
+<ol>
+<li>Hóa đơn được tích điểm là hóa đơn do các quầy thu ngân trực thuộc LOTTE MART phát hành. Hóa đơn chỉ có giá trị tích điểm ngay tại thời điểm thanh toán, không áp dụng tích điểm sau thời gian mua hàng.</li>
+<li>Không áp dụng tích điểm cho phần thanh toán bằng điểm.</li>
+<li>Không áp dụng tích điểm khi mua Thẻ quà tặng LOTTE MART .</li>
+<li>Kết quả xét hạng và phân hạng thành viên mới sẽ được cập nhật trong khoảng từ ngày 01 đến ngày 03 của tháng liền kề sau kỳ xét hạng; trường hợp thời gian này trùng với ngày nghỉ hoặc ngày lễ thì việc cập nhật sẽ được thực hiện vào ngày làm việc tiếp theo.</li>
+<li>Điểm thưởng thăng/giữ hạng sẽ được cộng vào tài khoản thành viên trong tháng liền kề sau kỳ xét hạng. Quà thăng hạng và quà duy trì hạng không áp dụng cho khách mua số lượng lớn, khách mua hàng với mục đích mua đi bán lại.</li>
+<li>Điểm khả dụng trong Thẻ Thành viên có thể được quy đổi thành giá trị thanh toán tại quầy thu ngân trực thuộc LOTTE MART trong những lần mua sắm tiếp theo, nhưng không được quy đổi thành tiền mặt.</li>
+<li>Khi đổi hàng, trả hàng thì Điểm tích lũy của các sản phẩm đổi, trả đó cũng bị hủy bỏ.</li>
+<li>Các sản phẩm không áp dụng tích điểm bao gồm: Rượu, thức uống có cồn, sản phẩm điện tử, sữa dành cho trẻ dưới hai (02) tuổi, các sản phẩm bị cấm khuyến mãi theo quy định của pháp luật Nhà nước Việt Nam và/hoặc một số sản phẩm được LOTTE MART cập nhật và đăng tải, thông báo công khai tại từng thời điểm.</li>
+<li>Tổng giá trị mua hàng trong một (01) năm của một (01) chủ Thẻ Thành viên không được quá một trăm (100) tỷ đồng, nếu vượt quá giá trị một trăm (100) tỷ đồng trong một (01) năm thì phần giá trị hơn một trăm (100) tỷ đồng sẽ không được tích lũy.</li>
+</ol>
+<p style="text-align: right;"><em>Điều kiện và điều khoản Chương trình Thành viên (phiên bản 3) được cập nhật và đăng tải vào ngày 01/04/2026.</em></p></div></div></div></div></main><footer id="footer" class="footer bg-light"><div class="footer-content"><div class="container"><div class="row"><div class="col-12 col-md-6 col-lg-3 mb-3"><div class="d-none d-md-block"><h3 class="fontsize-18">Về LOTTE Mart</h3><ul class="list-unstyled fontsize-14 list-color-dark-gray"><li><a title="Giới Thiệu" href="/vi-nsg/about-us">Giới Thiệu</a></li><li><a title="Chính Sách Bảo Mật" href="/vi-nsg/privacy">Chính Sách Bảo Mật</a></li><li><a title="Điều kiện &amp; Điều khoản" href="/vi-nsg/membership-policy">Điều kiện &amp; Điều khoản</a></li></ul></div><div class="d-block d-md-none"><h3 class="fontsize-18">Liên kết trang web</h3><div class="dropdown dropdown-type row g-0 align-items-center"><button class="dropdown-toggle dropdown-toggle col text-start" data-bs-toggle="dropdown" type="button" aria-expanded="true">Về LOTTE Mart</button><div class="dropdown-menu w-100"><ul class="menu-content checked-type"><li><a title="Giới Thiệu" href="/vi-nsg/about-us">Giới Thiệu</a></li><li><a title="Chính Sách Bảo Mật" href="/vi-nsg/privacy">Chính Sách Bảo Mật</a></li><li><a title="Điều kiện &amp; Điều khoản" href="/vi-nsg/membership-policy">Điều kiện &amp; Điều khoản</a></li></ul></div></div></div></div><div class="col-12 col-md-6 col-lg-3 mb-4m"><div class="d-none d-md-block"><h3 class="fontsize-18">Chăm Sóc Khách Hàng</h3><ul class="list-unstyled fontsize-14 list-color-dark-gray"><li><a title="Câu Hỏi Thường Gặp" href="/vi-nsg/faq">Câu Hỏi Thường Gặp</a></li><li><a title="Quản Lý Tài Khoản" href="/vi-nsg/account-management">Quản Lý Tài Khoản</a></li><li><a title="Chính Sách Mua Hàng" href="/vi-nsg/shipping-delivery">Chính Sách Mua Hàng</a></li><li><a title="Đổi Trả Và Hoàn Tiền" href="/vi-nsg/exchange-refund">Đổi Trả Và Hoàn Tiền</a></li><li><a title="Chính Sách, Điều Kiện Giao Dịch" href="/vi-nsg/faq?tab=policy">Chính Sách, Điều Kiện Giao Dịch</a></li></ul></div><div class="d-block d-md-none"><div class="dropdown dropdown-type row g-0 align-items-center"><button class="dropdown-toggle dropdown-toggle col text-start" data-bs-toggle="dropdown" type="button" aria-expanded="true">Chăm Sóc Khách Hàng</button><div class="dropdown-menu w-100"><ul class="menu-content checked-type"><li><a title="Câu Hỏi Thường Gặp" href="/vi-nsg/faq">Câu Hỏi Thường Gặp</a></li><li><a title="Quản Lý Tài Khoản" href="/vi-nsg/account-management">Quản Lý Tài Khoản</a></li><li><a title="Chính Sách Mua Hàng" href="/vi-nsg/shipping-delivery">Chính Sách Mua Hàng</a></li><li><a title="Đổi Trả Và Hoàn Tiền" href="/vi-nsg/exchange-refund">Đổi Trả Và Hoàn Tiền</a></li><li><a title="Chính Sách, Điều Kiện Giao Dịch" href="/vi-nsg/faq?tab=policy">Chính Sách, Điều Kiện Giao Dịch</a></li></ul></div></div></div></div><div class="col-12 col-md-6 col-lg-3 mb-4m"><h3 class="fontsize-18">Phương Thức Thanh Toán</h3><div class="mb-3"><img class="mb-1 me-3s" src="/asset/images/icon-visa-3.svg" alt="Visa Image" width="48" height="48"><img class="mb-1 me-3s" src="/asset/images/icon-mastercard-3.svg" alt="Master Card Image" width="48" height="48"><img class="mb-1 me-3s" src="/asset/images/icon-jcb-3.svg" alt="Jcb Card Image" width="48" height="48"><br class="mob-h"><img class="mb-1 me-3s" src="/asset/images/icon-cash-f.svg" alt="Cash Image" width="48" height="48"><img class="mb-1 me-3s" src="/asset/images/zalopay-f.svg" alt="ZaloPay Image" width="48" height="48"><img class="mb-1 me-3s" src="/asset/images/icon-shopeepay.svg" alt="ShopeePay Image" width="38" height="38"><br class="mob-h"><img class="mb-1 me-3s" src="/asset/images/vnpay-f.svg" alt="VNPay Image" width="48" height="48"><img class="mb-1 me-3s" src="/asset/images/icon-momo-f.svg" alt="Momo Image" width="48" height="48"><img class="mb-1 me-3s" src="/asset/images/logo-cnf.svg" alt="CNF Logo" width="48" height="48"></div><h3 class="fontsize-18">Chứng Nhận Bởi</h3><p class="mb-1"><a href="http://online.gov.vn/Home/WebDetails/51612?AspxAutoDetectCookieSupport=1" target="_blank"><img src="/asset/images/img-bct-dathongbao.png" alt="Đã đăng ký Bộ Công Thương" width="128" height="48"></a></p></div><div class="col-12 col-md-6 col-lg-3 mb-4m"><h3 class="fontsize-18">Kết Nối Với Chúng Tôi</h3><div class="socials-link mb-3"><a href="https://www.facebook.com/LotteMartVN" target="_blank"><img alt="" aria-label="fb" loading="lazy" width="48" height="48" decoding="async" data-nimg="1" class="mb-2 me-3s" style="color:transparent" src="/asset/images/icon-facebook-3.svg"></a><a href="https://www.youtube.com/channel/UCNhksIAgeG6t_r2wviCwCfg" target="_blank"><img alt="" aria-label="yt" loading="lazy" width="48" height="48" decoding="async" data-nimg="1" class="mb-2 me-3s" style="color:transparent" src="/asset/images/icon-youtube-3.svg"></a><a href="https://www.tiktok.com/@lottemartonline" class="mb-2" target="_blank"><img alt="" aria-label="tt" loading="lazy" width="48" height="48" decoding="async" data-nimg="1" class="mb-2" style="color:transparent" src="/asset/images/icon-tiktok-3.svg"></a></div><h3 class="fontsize-18">Tải Ứng Dụng LOTTE Mart</h3><div class="row row-cols-auto row-cols-lg-1 gx-2"><div class="col mb-2"><a href="https://apps.apple.com/us/app/lotte-mart-vietnam/id6447617674" target="_blank" title="App Store"><img alt="App Store" aria-label="ap" loading="lazy" width="152" height="44" decoding="async" data-nimg="1" style="color:transparent" src="/asset/images/appstore.svg"></a></div><div class="col mb-0"><a href="https://play.google.com/store/apps/details?id=vn.ldcc.martonline" target="_blank" title="Google Play"><img alt="Google Play" aria-label="gg" loading="lazy" width="152" height="44" decoding="async" data-nimg="1" style="color:transparent" src="/asset/images/googleplay.svg"></a></div></div></div></div><div class="row"><div class="col"><h3 class="fontsize-18">CÔNG TY CỔ PHẦN TRUNG TÂM THƯƠNG MẠI LOTTE VIỆT NAM</h3><div class="fontsize-14"><p><strong>Trụ sở chính: </strong> 469 Nguyễn Hữu Thọ, Phường Tân Hưng, TP.Hồ Chí Minh, Việt Nam</p><p><strong>Giờ hoạt động: </strong> 8:00 - 21:00</p><p class="mb-3"><i class="icons icon-headphone me-1"></i> <strong class="me-3">0901 057 057</strong><i class="icons icon-mail me-2"></i> <a class="btn-link" href="mailto:info@lottemart.vn">info@lottemart.vn</a></p><p>Người đại diện theo pháp luật: SHIN JUBACK – Chức danh: Tổng giám đốc</p><p class="mb-4">Giấy chứng nhận Đăng ký kinh doanh số 0304741634 do Sở Kế hoạch và Đầu tư Thành phố Hồ Chí Minh cấp ngày 24/10/2006</p><hr class="mb-4"><p class="txt-grayer">© 2023 - Bản quyền của Công ty Cổ phần Trung Tâm Thương Mại LOTTE Việt Nam</p></div></div></div></div></div></footer><div class="Toastify"></div></div><div></div></body></html>

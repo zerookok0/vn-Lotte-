@@ -1,0 +1,767 @@
+<!DOCTYPE html><html lang="vi" style=""><head>
+<script>
+/* [ltm-clone] 契约 §3 ①②：UTM 捕获 + 购物车骨架（构建时内联，不依赖服务端注入）
+   同步执行，必须排在 /bp/connector.js 之前。购物车从 cookie 还原，
+   这样 connector 第一次 getCart() 就能拿到正确金额。 */
+(function () {
+  var K = ['utm_source','utm_medium','utm_campaign','utm_term','utm_content','utm_id',
+           'fbclid','ttclid','gclid','adset_id','campaign_id','sub1','sub2','sub3','sub4','sub5'];
+
+  function cookie(name) {
+    var m = document.cookie.match(new RegExp('(?:^|;\\s*)' + name + '=([^;]+)'));
+    return m ? decodeURIComponent(m[1]) : '';
+  }
+  function grab(q) {
+    var o = {}, p = (q || '').replace(/^\?/, '').split('&');
+    for (var i = 0; i < p.length; i++) {
+      var kv = p[i].split('=');
+      if (kv.length < 2) continue;
+      try {
+        var k = decodeURIComponent(kv[0]);
+        if (K.indexOf(k) !== -1) o[k] = decodeURIComponent(kv.slice(1).join('='));
+      } catch (e) {}
+    }
+    return o;
+  }
+  function loadUTM() {
+    try { return JSON.parse(sessionStorage.getItem('bp_utm') || '{}'); } catch (e) { return {}; }
+  }
+  function utmSave(o) {
+    try { sessionStorage.setItem('bp_utm', JSON.stringify(o)); } catch (e) {}
+    try {
+      var d = new Date(); d.setTime(d.getTime() + 7 * 864e5);
+      document.cookie = 'bp_utm=' + encodeURIComponent(JSON.stringify(o)) +
+        '; expires=' + d.toUTCString() + '; path=/; SameSite=Lax';
+    } catch (e) {}
+  }
+
+  var cur = loadUTM(), add = false, m;
+  m = grab(location.search);
+  for (var a in m) { cur[a] = m[a]; add = true; }
+  try {
+    var nav = performance.getEntriesByType && performance.getEntriesByType('navigation')[0];
+    if (nav && nav.name) {
+      m = grab(nav.name.split('?')[1] || '');
+      for (var b in m) { cur[b] = m[b]; add = true; }
+    }
+  } catch (e) {}
+  try {
+    if (document.referrer) {
+      m = grab(document.referrer.split('?')[1] || '');
+      for (var c in m) { if (!cur[c]) { cur[c] = m[c]; add = true; } }
+    }
+  } catch (e) {}
+  if (add) utmSave(cur);
+  window.__BP_UTM__ = cur;
+  window.BP_UTM = cur;
+
+  /* ---- 购物车：cookie 里是 sku:qty:price,... ---- */
+  var raw = cookie('ltm_cart'), items = [], total = 0;
+  if (raw) {
+    var parts = raw.split(',');
+    for (var i = 0; i < parts.length && i < 50; i++) {
+      var seg = parts[i].split(':');
+      if (!seg[0]) continue;
+      var qty = parseInt(seg[1], 10) || 1;
+      var price = parseInt(seg[2], 10) || 0;
+      items.push({ sku: seg[0], name: '', qty: qty, price: price });
+      total += price * qty;
+    }
+  }
+  var amountText = '0 ₫';
+  try {
+    amountText = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 }).format(total) + ' ₫';
+  } catch (e) { amountText = String(total) + ' ₫'; }
+
+  window.__BP_CART__ = {
+    order_number: cookie('bp_oid') || '',
+    currency: 'VND',
+    total: total,
+    total_amount: amountText,
+    items: items,
+    locale: 'vi'
+  };
+  window.BP_CART = window.__BP_CART__;
+})();
+</script>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width"><meta property="og:title" content="LOTTE Mart Viet Nam"><meta name="description" content="Trang web/Ứng dụng Đi chợ Online chính thức của LOTTE Mart Việt Nam. Nhiều ưu đãi, mã giảm giá, voucher hấp dẫn."><meta property="og:image" content="/media/.thumbswysiwyg/review.png"><meta property="og:url" content=""><meta property="og:type" content="website" data-react-helmet="true"><meta name="zalo-platform-site-verification" content="KuxcTfJwGr9M-SDEa8Xn4XILzXZuwYD2CJC"><title>Chính Sách Mua Hàng Trực Tuyến</title><meta name="description" content="Chính Sách Mua Hàng Trực Tuyến"><meta name="application-name" content="LOTTE Mart Online"><meta property="og:title" content="Chính Sách Mua Hàng Trực Tuyến"><meta property="og:url" content="/vi-nsg/shipping-delivery"><meta property="og:description" content="Chính Sách Mua Hàng Trực Tuyến"><link rel="canonical" href="/vi-nsg/shipping-delivery"><meta name="copyright" content="© 2023 - Bản quyền của Công ty Cổ phần Trung Tâm Thương Mại LOTTE Việt Nam"><meta name="next-head-count" content="16"><link rel="manifest" href="/manifest.json"><link rel="icon" href="/media/favicon.ico"><meta name="theme-color" content="#fff"><link rel="stylesheet" type="text/css" href="/asset/css/bootstrap.min.css"><link rel="preload" href="/_next/static/media/8ff6965283b25d97-s.p.ttf" as="font" type="font/ttf" crossorigin="anonymous" data-next-font="size-adjust"><link rel="preload" href="/_next/static/media/a5947e779e3f9830-s.p.ttf" as="font" type="font/ttf" crossorigin="anonymous" data-next-font="size-adjust"><link rel="preload" href="/_next/static/media/bc297ed5b23d4574-s.p.ttf" as="font" type="font/ttf" crossorigin="anonymous" data-next-font="size-adjust"><link rel="preload" href="/_next/static/media/530bae4d999e632d-s.p.ttf" as="font" type="font/ttf" crossorigin="anonymous" data-next-font="size-adjust"><link rel="preload" href="/_next/static/css/bfe73692512055e8.css" as="style"><link rel="stylesheet" href="/_next/static/css/bfe73692512055e8.css" data-n-g=""><link rel="preload" href="/_next/static/css/375a85a193efa97a.css" as="style"><link rel="stylesheet" href="/_next/static/css/375a85a193efa97a.css"><noscript data-n-css=""></noscript><style>@font-face {
+  font-family: 'icomoon';
+  src: url(data:application/vnd.ms-fontobject;base64,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);
+  src: url(data:application/vnd.ms-fontobject;base64,EAkAAGwIAAABAAIAAAAAAAAAAAAAAAAAAAABAJABAAAAAExQAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAtY+ntwAAAAAAAAAAAAAAAAAAAAAAAA4AaQBjAG8AbQBvAG8AbgAAAA4AUgBlAGcAdQBsAGEAcgAAABYAVgBlAHIAcwBpAG8AbgAgADEALgAwAAAADgBpAGMAbwBtAG8AbwBuAAAAAAAAAQAAAAsAgAADADBPUy8yDxIHXwAAALwAAABgY21hcKiOqIYAAAEcAAAAjGdhc3AAAAAQAAABqAAAAAhnbHlmIUjQ2AAAAbAAAAQ8aGVhZBDtn4cAAAXsAAAANmhoZWEHwgPQAAAGJAAAACRobXR4MgABGAAABkgAAAA8bG9jYQZOB7gAAAaEAAAAIG1heHAAEwBWAAAGpAAAACBuYW1lmUoJ+wAABsQAAAGGcG9zdAADAAAAAAhMAAAAIAADA9UBkAAFAAACmQLMAAAAjwKZAswAAAHrADMBCQAAAAAAAAAAAAAAAAAAAAEQAAAAAAAAAAAAAAAAAAAAAEAAAOpgA8D/wABAA8AAQAAAAAEAAAAAAAAAAAAAACAAAAAAAAMAAAADAAAAHAABAAMAAAAcAAMAAQAAABwABABwAAAAGAAQAAMACAABACDpaOmE6cfqC+oP6jTqOOpg//3//wAAAAAAIOln6YTpx+oK6g/qNOo46l///f//AAH/4xadFoIWQBX+FfsV1xXUFa4AAwABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAf//AA8AAQAAAAAAAAAAAAIAADc5AQAAAAABAAAAAAAAAAAAAgAANzkBAAAAAAEAAAAAAAAAAAACAAA3OQEAAAAAAQBA/8ADigPAABEAAAU2NzYmJyYHFQkBFTYXHgEHBgL6KxMTOFVWqP6AAYDJcXJGKCdATVtbmjMyBP4BgAGA+AVOTuyKiQAAAQB2/8ADwAPAABIAAAE1CQE1JgcOARcWFyYnJjY3NhcCQAGA/oCoVlU4ExMraScoRnJxyQLI+P6A/oD+BDIzmltbTXKJiuxOTgUAAAEAAP/ABAADwAA1AAABITcuASMiBgcOARUUFhceATMyNjc+ATcXBgcOAQcGIyInLgEnJjU0Nz4BNzYzMhceARcWFzcEAP6AkDeMTU2MNzY6OjY3jE1NjDcECQRgIysrYjY2OmpdXosoKCgoi15dajUyMlwpKSOWAkCQNjo6NjeMTU2MNzY6OjYFCQVUKCEgLQ0MKCiLXl1qal1eiygoCgsnGxwjlgAAAAMAAAAAA8ADgAAGAAsADwAACQIzETMRAyERIREHIzUzAuD/AP8AoMBg/iADwECAgAIA/wABAAGA/oD/AP8AAQCAQAAAAQAA/8AEAAPAACMAAAEhETQmKwEiBhURISIGHQEUFjMhERQWOwEyNjURITI2PQE0JgPg/qATDcANE/6gDRMTDQFgEw3ADRMBYA0TEwJAAWANExMN/qATDcANE/6gDRMTDQFgEw3ADRMAAAAAAQAAAUAEAAJAAA8AABMVFBYzITI2PQE0JiMhIgYAEw0DwA0TEw38QA0TAiDADRMTDcANExMAAAABAAL/wgP+A74AUwAAJTgBMQkBOAExPgE3NiYvAS4BBw4BBzgBMQkBOAExLgEnJgYPAQ4BFx4BFzgBMQkBOAExDgEHBhYfAR4BNz4BNzgBMQkBOAExHgEXFjY/AT4BJy4BA/f+yQE3AgQBAwMHkwcSCQMGAv7J/skCBgMJEgeTBwMDAQQCATf+yQIEAQMDB5MHEgkDBgIBNwE3AgYDCRIHkwcDAwEEiQE3ATcCBgMJEgeTBwMDAQQC/skBNwIEAQMDB5MHEgkDBgL+yf7JAgYDCRIHkwcDAwEEAgE3/skCBAEDAweTBxIJAwYAAAEAAP/gA+ADoAAGAAAJAREhESERA+D+IP4AAgABwAHg/uD+gP7gAAABACD/4AQAA6AABgAAEwERIREhESAB4AIA/gABwP4gASABgAEgAAAAAgAAAAAEAAOAAAkAFwAAJTMHJzMRIzcXIyURJyMRMxUhNTMRIwcRA4CAoKCAgKCggP8AQMCA/oCAwEDAwMACAMDAwP8AgP1AQEACwIABAAACAED/wAPAA4AACQAXAAAlFSc3FSE1Fwc1ExEnIxEzFSE1MxEjBxEBAMDAAgDAwEBAwID+gIDAQECAoKCAgKCggANA/wCA/kBAQAHAgAEAAAEAAAAAAAC3p4+1Xw889QALBAAAAAAA1uethQAAAADW562FAAD/wAQAA8AAAAAIAAIAAAAAAAAAAQAAA8D/wAAABAAAAAAABAAAAQAAAAAAAAAAAAAAAAAAAA8EAAAAAAAAAAAAAAACAAAABAAAQAQAAHYEAAAABAAAAAQAAAAEAAAABAAAAgQAAAAEAAAgBAAAAAQAAEAAAAAAAAoAFAAeAEIAaAC8AN4BFAEwAaYBugHOAfYCHgABAAAADwBUAAMAAAAAAAIAAAAAAAAAAAAAAAAAAAAAAAAADgCuAAEAAAAAAAEABwAAAAEAAAAAAAIABwBgAAEAAAAAAAMABwA2AAEAAAAAAAQABwB1AAEAAAAAAAUACwAVAAEAAAAAAAYABwBLAAEAAAAAAAoAGgCKAAMAAQQJAAEADgAHAAMAAQQJAAIADgBnAAMAAQQJAAMADgA9AAMAAQQJAAQADgB8AAMAAQQJAAUAFgAgAAMAAQQJAAYADgBSAAMAAQQJAAoANACkaWNvbW9vbgBpAGMAbwBtAG8AbwBuVmVyc2lvbiAxLjAAVgBlAHIAcwBpAG8AbgAgADEALgAwaWNvbW9vbgBpAGMAbwBtAG8AbwBuaWNvbW9vbgBpAGMAbwBtAG8AbwBuUmVndWxhcgBSAGUAZwB1AGwAYQByaWNvbW9vbgBpAGMAbwBtAG8AbwBuRm9udCBnZW5lcmF0ZWQgYnkgSWNvTW9vbi4ARgBvAG4AdAAgAGcAZQBuAGUAcgBhAHQAZQBkACAAYgB5ACAASQBjAG8ATQBvAG8AbgAuAAAAAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==?#iefix) format('embedded-opentype'), url(data:font/ttf;base64,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) format('truetype'), url(data:font/woff;base64,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) format('woff'), url(data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBzdGFuZGFsb25lPSJubyI/Pg0KPCFET0NUWVBFIHN2ZyBQVUJMSUMgIi0vL1czQy8vRFREIFNWRyAxLjEvL0VOIiAiaHR0cDovL3d3dy53My5vcmcvR3JhcGhpY3MvU1ZHLzEuMS9EVEQvc3ZnMTEuZHRkIiA+DQo8c3ZnIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+DQo8bWV0YWRhdGE+R2VuZXJhdGVkIGJ5IEljb01vb248L21ldGFkYXRhPg0KPGRlZnM+DQo8Zm9udCBpZD0iaWNvbW9vbiIgaG9yaXotYWR2LXg9IjEwMjQiPg0KPGZvbnQtZmFjZSB1bml0cy1wZXItZW09IjEwMjQiIGFzY2VudD0iOTYwIiBkZXNjZW50PSItNjQiIC8+DQo8bWlzc2luZy1nbHlwaCBob3Jpei1hZHYteD0iMTAyNCIgLz4NCjxnbHlwaCB1bmljb2RlPSImI3gyMDsiIGhvcml6LWFkdi14PSI1MTIiIGQ9IiIgLz4NCjxnbHlwaCB1bmljb2RlPSImI3hlOTY3OyIgZ2x5cGgtbmFtZT0icm90YXRlLWxlZnQiIGQ9Ik03NjEuODYyLTY0YzExMy43MjYgMjA2LjAzMiAxMzIuODg4IDUyMC4zMDYtMzEzLjg2MiA1MDkuODI0di0yNTMuODI0bC0zODQgMzg0IDM4NCAzODR2LTI0OC4zNzJjNTM0Ljk2MiAxMy45NDIgNTk0LjU3LTQ3Mi4yMTQgMzEzLjg2Mi03NzUuNjI4eiIgLz4NCjxnbHlwaCB1bmljb2RlPSImI3hlOTY4OyIgZ2x5cGgtbmFtZT0icm90YXRlLXJpZ2h0IiBkPSJNNTc2IDcxMS42Mjh2MjQ4LjM3MmwzODQtMzg0LTM4NC0zODR2MjUzLjgyNGMtNDQ2Ljc1IDEwLjQ4Mi00MjcuNTg4LTMwMy43OTItMzEzLjg2LTUwOS44MjQtMjgwLjcxMiAzMDMuNDE0LTIyMS4xIDc4OS41NyAzMTMuODYgNzc1LjYyOHoiIC8+DQo8Z2x5cGggdW5pY29kZT0iJiN4ZTk4NDsiIGdseXBoLW5hbWU9InJlc2V0IiBkPSJNMTAyNCA1NzZoLTM4NGwxNDMuNTMgMTQzLjUzYy03Mi41MyA3Mi41MjYtMTY4Ljk2IDExMi40Ny0yNzEuNTMgMTEyLjQ3cy0xOTktMzkuOTQ0LTI3MS41My0xMTIuNDdjLTcyLjUyNi03Mi41My0xMTIuNDctMTY4Ljk2LTExMi40Ny0yNzEuNTNzMzkuOTQ0LTE5OSAxMTIuNDctMjcxLjUzYzcyLjUzLTcyLjUyNiAxNjguOTYtMTEyLjQ3IDI3MS41My0xMTIuNDdzMTk5IDM5Ljk0NCAyNzEuNTI4IDExMi40NzJjNi4wNTYgNi4wNTQgMTEuODYgMTIuMjkyIDE3LjQ1NiAxOC42NjhsOTYuMzItODQuMjgyYy05My44NDYtMTA3LjE2Ni0yMzEuNjY0LTE3NC44NTgtMzg1LjMwNC0xNzQuODU4LTI4Mi43NyAwLTUxMiAyMjkuMjMtNTEyIDUxMnMyMjkuMjMgNTEyIDUxMiA1MTJjMTQxLjM4NiAwIDI2OS4zNjgtNTcuMzI2IDM2Mi4wMTYtMTQ5Ljk4NGwxNDkuOTg0IDE0OS45ODR2LTM4NHoiIC8+DQo8Z2x5cGggdW5pY29kZT0iJiN4ZTljNzsiIGdseXBoLW5hbWU9ImRvd25sb2FkIiBkPSJNNzM2IDUxMmwtMjU2LTI1Ni0yNTYgMjU2aDE2MHYzODRoMTkydi0zODR6TTQ4MCAyNTZoLTQ4MHYtMjU2aDk2MHYyNTZoLTQ4MHpNODk2IDEyOGgtMTI4djY0aDEyOHYtNjR6IiAvPg0KPGdseXBoIHVuaWNvZGU9IiYjeGVhMGE7IiBnbHlwaC1uYW1lPSJ6b29tLWluIiBkPSJNOTkyIDU3NmgtMzUydjM1MmMwIDE3LjY3Mi0xNC4zMjggMzItMzIgMzJoLTE5MmMtMTcuNjcyIDAtMzItMTQuMzI4LTMyLTMydi0zNTJoLTM1MmMtMTcuNjcyIDAtMzItMTQuMzI4LTMyLTMydi0xOTJjMC0xNy42NzIgMTQuMzI4LTMyIDMyLTMyaDM1MnYtMzUyYzAtMTcuNjcyIDE0LjMyOC0zMiAzMi0zMmgxOTJjMTcuNjcyIDAgMzIgMTQuMzI4IDMyIDMydjM1MmgzNTJjMTcuNjcyIDAgMzIgMTQuMzI4IDMyIDMydjE5MmMwIDE3LjY3Mi0xNC4zMjggMzItMzIgMzJ6IiAvPg0KPGdseXBoIHVuaWNvZGU9IiYjeGVhMGI7IiBnbHlwaC1uYW1lPSJ6b29tLW91dCIgZD0iTTAgNTQ0di0xOTJjMC0xNy42NzIgMTQuMzI4LTMyIDMyLTMyaDk2MGMxNy42NzIgMCAzMiAxNC4zMjggMzIgMzJ2MTkyYzAgMTcuNjcyLTE0LjMyOCAzMi0zMiAzMmgtOTYwYy0xNy42NzIgMC0zMi0xNC4zMjgtMzItMzJ6IiAvPg0KPGdseXBoIHVuaWNvZGU9IiYjeGVhMGY7IiBnbHlwaC1uYW1lPSJjbG9zZSIgZD0iTTEwMTQuNjYyIDEzNy4zNGMtMC4wMDQgMC4wMDQtMC4wMDggMC4wMDgtMC4wMTIgMC4wMTBsLTMxMC42NDQgMzEwLjY1IDMxMC42NDQgMzEwLjY1YzAuMDA0IDAuMDA0IDAuMDA4IDAuMDA2IDAuMDEyIDAuMDEwIDMuMzQ0IDMuMzQ2IDUuNzYyIDcuMjU0IDcuMzEyIDExLjQxNiA0LjI0NiAxMS4zNzYgMS44MjQgMjQuNjgyLTcuMzI0IDMzLjgzbC0xNDYuNzQ2IDE0Ni43NDZjLTkuMTQ4IDkuMTQ2LTIyLjQ1IDExLjU2Ni0zMy44MjggNy4zMi00LjE2LTEuNTUtOC4wNzAtMy45NjgtMTEuNDE4LTcuMzEgMC0wLjAwNC0wLjAwNC0wLjAwNi0wLjAwOC0wLjAxMGwtMzEwLjY0OC0zMTAuNjUyLTMxMC42NDggMzEwLjY1Yy0wLjAwNCAwLjAwNC0wLjAwNiAwLjAwNi0wLjAxMCAwLjAxMC0zLjM0NiAzLjM0Mi03LjI1NCA1Ljc2LTExLjQxNCA3LjMxLTExLjM4IDQuMjQ4LTI0LjY4MiAxLjgyNi0zMy44My03LjMybC0xNDYuNzQ4LTE0Ni43NDhjLTkuMTQ4LTkuMTQ4LTExLjU2OC0yMi40NTItNy4zMjItMzMuODI4IDEuNTUyLTQuMTYgMy45Ny04LjA3MiA3LjMxMi0xMS40MTYgMC4wMDQtMC4wMDIgMC4wMDYtMC4wMDYgMC4wMTAtMC4wMTBsMzEwLjY1LTMxMC42NDgtMzEwLjY1LTMxMC42NTJjLTAuMDAyLTAuMDA0LTAuMDA2LTAuMDA2LTAuMDA4LTAuMDEwLTMuMzQyLTMuMzQ2LTUuNzYtNy4yNTQtNy4zMTQtMTEuNDE0LTQuMjQ4LTExLjM3Ni0xLjgyNi0yNC42ODIgNy4zMjItMzMuODNsMTQ2Ljc0OC0xNDYuNzQ2YzkuMTUtOS4xNDggMjIuNDUyLTExLjU2OCAzMy44My03LjMyMiA0LjE2IDEuNTUyIDguMDcwIDMuOTcgMTEuNDE2IDcuMzEyIDAuMDAyIDAuMDA0IDAuMDA2IDAuMDA2IDAuMDEwIDAuMDEwbDMxMC42NDggMzEwLjY1IDMxMC42NDgtMzEwLjY1YzAuMDA0LTAuMDAyIDAuMDA4LTAuMDA2IDAuMDEyLTAuMDA4IDMuMzQ4LTMuMzQ0IDcuMjU0LTUuNzYyIDExLjQxNC03LjMxNCAxMS4zNzgtNC4yNDYgMjQuNjg0LTEuODI2IDMzLjgyOCA3LjMyMmwxNDYuNzQ2IDE0Ni43NDhjOS4xNDggOS4xNDggMTEuNTcgMjIuNDU0IDcuMzI0IDMzLjgzLTEuNTUyIDQuMTYtMy45NyA4LjA2OC03LjMxNCAxMS40MTR6IiAvPg0KPGdseXBoIHVuaWNvZGU9IiYjeGVhMzQ7IiBnbHlwaC1uYW1lPSJuZXh0IiBkPSJNOTkyIDQ0OGwtNDgwIDQ4MHYtMjg4aC01MTJ2LTM4NGg1MTJ2LTI4OHoiIC8+DQo8Z2x5cGggdW5pY29kZT0iJiN4ZWEzODsiIGdseXBoLW5hbWU9InByZXYiIGQ9Ik0zMiA0NDhsNDgwLTQ4MHYyODhoNTEydjM4NGgtNTEydjI4OHoiIC8+DQo8Z2x5cGggdW5pY29kZT0iJiN4ZWE1ZjsiIGdseXBoLW5hbWU9InNjYWxlWSIgZD0iTTg5NiAxOTJoMTI4bC0xNjAtMTkyLTE2MCAxOTJoMTI4djUxMmgtMTI4bDE2MCAxOTIgMTYwLTE5MmgtMTI4ek02NDAgODk2di0yNTZsLTY0IDEyOGgtMTkydi03MDRoMTI4di02NGgtMzg0djY0aDEyOHY3MDRoLTE5MmwtNjQtMTI4djI1NnoiIC8+DQo8Z2x5cGggdW5pY29kZT0iJiN4ZWE2MDsiIGdseXBoLW5hbWU9InNjYWxlWCIgZD0iTTI1NiA2NHYtMTI4bC0xOTIgMTYwIDE5MiAxNjB2LTEyOGg1MTJ2MTI4bDE5Mi0xNjAtMTkyLTE2MHYxMjh6TTgzMiA4OTZ2LTI1NmwtNjQgMTI4aC0xOTJ2LTQ0OGgxMjh2LTY0aC0zODR2NjRoMTI4djQ0OGgtMTkybC02NC0xMjh2MjU2eiIgLz4NCjwvZm9udD48L2RlZnM+PC9zdmc+) format('svg');
+  font-weight: normal;
+  font-style: normal;
+}
+.react-viewer {
+  opacity: 0;
+}
+.react-viewer-inline {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 400px;
+}
+.react-viewer ul {
+  margin: 0;
+  padding: 0;
+}
+.react-viewer li {
+  list-style: none;
+}
+.react-viewer-mask {
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 0;
+  bottom: 0;
+  background-color: #373737;
+  background-color: rgba(55, 55, 55, 0.6);
+  height: 100%;
+  filter: alpha(opacity=50);
+  z-index: 1000;
+}
+.react-viewer-btn {
+  background-color: rgba(0, 0, 0, 0.5);
+  color: white;
+}
+.react-viewer-btn:hover {
+  background-color: rgba(0, 0, 0, 0.8);
+}
+.react-viewer-close {
+  position: fixed;
+  top: 0px;
+  right: 0px;
+  overflow: hidden;
+  width: 40px;
+  height: 40px;
+  border-radius: 0 0 0 40px;
+  cursor: pointer;
+  z-index: 1010;
+}
+.react-viewer-close > i {
+  position: relative;
+  top: 4px;
+  left: 18px;
+}
+.react-viewer-canvas {
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 0;
+  bottom: 0;
+  overflow: hidden;
+  z-index: 1005;
+}
+.react-viewer-canvas > img {
+  display: block;
+  width: auto;
+  height: auto;
+  -webkit-user-select: none;
+     -moz-user-select: none;
+      -ms-user-select: none;
+          user-select: none;
+}
+.react-viewer-canvas > img.drag {
+  cursor: move;
+}
+.react-viewer-footer {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  overflow: hidden;
+  text-align: center;
+  z-index: 1005;
+}
+.react-viewer-inline > .react-viewer-mask,
+.react-viewer-inline > .react-viewer-close,
+.react-viewer-inline > .react-viewer-canvas,
+.react-viewer-inline > .react-viewer-footer {
+  position: absolute;
+}
+.react-viewer-attribute {
+  margin: 0 20px;
+  margin-bottom: 6px;
+  opacity: 0.8;
+  color: #ccc;
+  font-size: 15px;
+}
+.react-viewer-showTotal {
+  float: right;
+}
+.react-viewer-toolbar {
+  overflow: hidden;
+  height: 28px;
+  margin-bottom: 6px !important;
+}
+.react-viewer-toolbar li {
+  display: inline-block;
+  width: 28px;
+  height: 28px;
+  border-radius: 28px;
+  margin-right: 3px;
+  cursor: pointer;
+  line-height: 28px;
+}
+.react-viewer-toolbar li:hover {
+  background-color: rgba(0, 0, 0, 0.8);
+}
+.react-viewer li.empty {
+  background-color: transparent;
+  cursor: default;
+}
+.react-viewer-navbar {
+  overflow: hidden;
+  background-color: rgba(0, 0, 0, 0.5);
+}
+.react-viewer-list {
+  height: 50px;
+  padding: 1px;
+  text-align: left;
+}
+.react-viewer-list > li {
+  display: inline-block;
+  width: 30px;
+  height: 50px;
+  cursor: pointer;
+  overflow: hidden;
+  margin-right: 1px;
+}
+.react-viewer-list > li > img {
+  width: 60px;
+  height: 50px;
+  margin-left: -15px;
+  opacity: 0.5;
+}
+.react-viewer-list > li.active > img {
+  opacity: 1;
+}
+.react-viewer-transition {
+  -webkit-transition: opacity 0.3s ease-out;
+  -o-transition: opacity 0.3s ease-out;
+  transition: opacity 0.3s ease-out;
+}
+.react-viewer-image-transition {
+  -webkit-transition-property: width, height, margin, -webkit-transform;
+  transition-property: width, height, margin, -webkit-transform;
+  -o-transition-property: width, height, margin, transform;
+  transition-property: width, height, margin, transform;
+  transition-property: width, height, margin, transform, -webkit-transform;
+  -webkit-transition-duration: 0.3s;
+       -o-transition-duration: 0.3s;
+          transition-duration: 0.3s;
+  -webkit-transition-timing-function: ease-out;
+       -o-transition-timing-function: ease-out;
+          transition-timing-function: ease-out;
+}
+.react-viewer-list-transition {
+  -webkit-transition: margin 0.3s ease-out;
+  -o-transition: margin 0.3s ease-out;
+  transition: margin 0.3s ease-out;
+}
+.react-viewer-icon {
+  font-family: 'icomoon' !important;
+  display: inline-block;
+  font-style: normal;
+  vertical-align: baseline;
+  text-align: center;
+  text-transform: none;
+  text-rendering: auto;
+  line-height: 1;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color: white;
+  font-size: 13px;
+}
+.react-viewer-icon-zoomIn:before {
+  content: '\ea0a';
+}
+.react-viewer-icon-zoomOut:before {
+  content: '\ea0b';
+}
+.react-viewer-icon-prev:before {
+  content: '\ea38';
+}
+.react-viewer-icon-next:before {
+  content: '\ea34';
+}
+.react-viewer-icon-close:before {
+  content: '\ea0f';
+}
+.react-viewer-icon-rotateLeft:before {
+  content: '\e967';
+}
+.react-viewer-icon-rotateRight:before {
+  content: '\e968';
+}
+.react-viewer-icon-reset:before {
+  content: '\e984';
+}
+.react-viewer-icon-scaleX:before {
+  content: '\ea60';
+}
+.react-viewer-icon-scaleY:before {
+  content: '\ea5f';
+}
+.react-viewer-icon-download:before {
+  content: '\e9c7';
+}
+.circle-loading {
+  -webkit-box-sizing: border-box;
+          box-sizing: border-box;
+  width: 80px;
+  height: 80px;
+  border-radius: 100%;
+  border: 10px solid rgba(255, 255, 255, 0.2);
+  border-top-color: #FFF;
+  -webkit-animation: spin 1s infinite linear;
+          animation: spin 1s infinite linear;
+}
+@-webkit-keyframes spin {
+  100% {
+    -webkit-transform: rotate(360deg);
+            transform: rotate(360deg);
+  }
+}
+@keyframes spin {
+  100% {
+    -webkit-transform: rotate(360deg);
+            transform: rotate(360deg);
+  }
+}
+</style>
+  <!-- clone runtime -->
+  <link rel="stylesheet" href="/assets/clone.css">
+  <link rel="stylesheet" href="/bp/connector.css">
+  <script defer src="/bp/connector.js"></script>
+  <script defer src="/assets/clone.js"></script>
+</head><body class="__className_04b26a"><div id="__next" class="app-layout page single-page"><div class="header-type"><div class="container"><h1 class="logo"><a title="LOTTE Mart" href="/"><span>LOTTE Mart</span></a></h1></div></div><main class="main"><div class="container"><div class="page-title"><h2>Chính Sách Mua Hàng Trực Tuyến</h2></div><div class="row justify-content-center"><div class="col-12 col-lg-8"><div class="static-content"><p><strong>1. Các hình thức thanh toán và hoàn tiền</strong></p>
+<p><strong>1.1 Các hình thức thanh toán</strong></p>
+<ul>
+<li>COD (Cash on delivery): Thanh toán trực tiếp bằng tiền mặt lúc nhận hàng.</li>
+<li>Thẻ tín dụng Visa/ Master/ JCB (trừ American Express và UnionPay): Thẻ còn hiệu lực về số dư khả dụng và ngày hết hạn trên thẻ; Khách có thể nhận mã OTP từ Ngân hàng gửi đến khi cần xác thực giao dịch thanh toán.</li>
+<li>ATM: Thẻ ATM có đăng ký dịch vụ Internet Banking với Ngân hàng. Nếu chưa có chức năng Internet Banking Quý khách cần liên hệ Ngân hàng phát hành thẻ để đăng ký dịch vụ này; Thẻ còn hiệu lực về số dư khả dụng và ngày hết hạn trên thẻ; Khách có thể nhận mã OTP từ Ngân hàng gửi đến khi cần xác thực giao dịch thanh toán.</li>
+<li>Momo: thanh toán qua ví điện tử Momo.</li>
+<li>VNPay QR: Cổng thanh toán VNPay QR.</li>
+<li>ZaloPay: thanh toán qua ví điện tử ZaloPay.</li>
+<li>ShopeePay: thanh toán qua ví điện tử ShopeePay.</li>
+<li>Hoặc các hình thức thanh toán khác được cập nhật tại từng thời điểm.</li>
+</ul>
+<p><strong>1.2&nbsp;</strong><strong>Thời gian hoàn tiền khi đơn hàng có phát sinh sản phẩm hết hàng, sản phẩm không đủ số lượng hoặc hủy toàn bộ đơn hàng</strong></p>
+<table width="0">
+<tbody>
+<tr>
+<td width="275">
+<p><strong>Phương thức thanh toán</strong></p>
+</td>
+<td width="275">
+<p><strong>Phương thức hoàn tiền</strong></p>
+</td>
+<td width="279">
+<p><strong>Thời gian LOTTE Mart xử lý sau khi nhận được yêu cầu trả hàng - hoàn tiền</strong></p>
+</td>
+<td width="147">
+<p><strong>Thời gian ngân hàng xử lý</strong></p>
+</td>
+<td width="147">
+<p><strong>Tổng thời gian hoàn tiền dự kiến</strong></p>
+</td>
+</tr>
+<tr>
+<td width="275">
+<p>Tiền mặt<br>(COD)</p>
+</td>
+<td width="275">
+<p>Tiền mặt<br>(COD)</p>
+</td>
+<td width="279">
+<p>Khi nhân viên LOTTE Mart đến nhà Quý khách thu hồi sản phẩm</p>
+</td>
+<td width="147">
+<p>&nbsp;</p>
+</td>
+<td width="147">
+<p>&nbsp;</p>
+</td>
+</tr>
+<tr>
+<td width="275">
+<p>Thẻ ATM Nội địa (NAPAS)</p>
+</td>
+<td width="275">
+<p>Thẻ ATM nội địa (NAPAS)</p>
+</td>
+<td width="279">
+<p>2-3 ngày làm việc</p>
+</td>
+<td width="147">
+<p>3-4 ngày làm việc</p>
+</td>
+<td width="147">
+<p>5-7 ngày làm việc</p>
+</td>
+</tr>
+<tr>
+<td width="275">
+<p>Thẻ tín dụng phát hành nội địa - Việt Nam<br>(Visa/ Master/ JCB)</p>
+</td>
+<td width="275">
+<p>Thẻ tín dụng phát hành nội địa - Việt Nam<br>(Visa/ Master/ JCB)</p>
+</td>
+<td width="279">
+<p>3-5 ngày làm việc</p>
+</td>
+<td width="147">
+<p>5-7 ngày làm việc</p>
+</td>
+<td width="147">
+<p>7-14 ngày làm việc</p>
+</td>
+</tr>
+<tr>
+<td width="275">
+<p>Thẻ tín dụng phát hành Quốc tế<br>(Visa/ Master/ JCB)</p>
+</td>
+<td width="275">
+<p>Thẻ tín dụng phát hành Quốc tế<br>(Visa/ Master/ JCB)</p>
+</td>
+<td width="279">
+<p>3-5 ngày làm việc</p>
+</td>
+<td width="147">
+<p>30-40 ngày làm việc</p>
+</td>
+<td width="147">
+<p>30-45 ngày làm việc</p>
+</td>
+</tr>
+<tr>
+<td width="275">
+<p>VNPay QR</p>
+</td>
+<td width="275">
+<p>Tài khoản đã sử dụng để thanh toán</p>
+</td>
+<td width="279">
+<p>Trong vòng 24h-48h làm việc</p>
+</td>
+<td width="147">
+<p>&nbsp;</p>
+</td>
+<td width="147">
+<p>&nbsp;</p>
+</td>
+</tr>
+<tr>
+<td>
+<p>MoMo</p>
+</td>
+<td width="275">
+<p>Tài khoản đã sử dụng để thanh toán</p>
+</td>
+<td width="279">
+<p>Trong vòng 24h-48h làm việc</p>
+</td>
+<td>
+<p>&nbsp;</p>
+</td>
+<td>
+<p>&nbsp;</p>
+</td>
+</tr>
+<tr>
+<td width="275">
+<p>ShopeePay</p>
+</td>
+<td width="275">
+<p>Tài khoản đã sử dụng để thanh toán</p>
+</td>
+<td width="279">
+<p>Trong vòng 24h-48h làm việc</p>
+</td>
+<td width="147">
+<p>&nbsp;</p>
+</td>
+<td width="147">
+<p>&nbsp;</p>
+</td>
+</tr>
+<tr>
+<td width="275">
+<p>ZaloPay</p>
+</td>
+<td width="275">
+<p>Tài khoản đã sử dụng để thanh toán</p>
+</td>
+<td width="279">
+<p>Trong vòng 24h-48h làm việc</p>
+</td>
+<td width="147">
+<p>&nbsp;</p>
+</td>
+<td width="147">
+<p>&nbsp;</p>
+</td>
+</tr>
+</tbody>
+</table>
+<p>&nbsp;</p>
+<p><strong>2</strong><strong>. </strong><strong>Chính sách quản lý đơn hàng</strong></p>
+<p>Khi khách hàng đăng ký thành viên LOTTE Mart sẽ được tạo một tài khoản để theo dõi thông tin đơn hàng.</p>
+<p>Định nghĩa các trạng thái đơn hàng theo thứ tự như&nbsp;sau:</p>
+<ol>
+<li>Hoàn tất đặt hàng: đơn hàng đã được xác nhận đặt hàng thành công &nbsp;</li>
+<li>Chuẩn bị soạn hàng: Nhân viên đang soạn hàng hóa theo đơn hàng của khách</li>
+<li><strong>Tư vấn khách hàng (nếu có)</strong>: Trong trường hợp Khách hàng đã bật nút nhận "Thông báo khi hết hàng" khi đặt đơn hàng, trong quá trình soạn hàng, nếu phát sinh trường hợp thiếu hàng hoặc hết hàng, nhân viên sẽ gọi cho Khách hàng để điều chỉnh số lượng hàng hóa.</li>
+<li>Xác nhận đặt&nbsp;hàng: Đơn hàng đã được điều chỉnh số lượng thực tế sau khi soạn hàng và thông báo khách hàng (nếu có)</li>
+<li>Chuẩn bị giao hàng: Hàng hóa đã được đóng gói và chuẩn bị đi giao hàng</li>
+<li>Đang giao hàng: Hàng hóa đã được xuất ra khỏi cửa hàng và đang trên đường giao hàng đến khách</li>
+<li>Hoàn tất giao hàng: Đơn hàng đã được giao hàng thành công đến khách hàng</li>
+</ol>
+<p>"Thanh toán thất bại" hoặc "Đang đợi thanh toán": là tình trạng đơn hàng của Quý khách thanh toán (trả trước bằng thẻ tín dụng/ ATM hoặc Momo)&nbsp;chưa thành công, cửa hàng sẽ không xử lý đơn hàng. Do đó, Quý khách vui lòng Thanh toán lại đơn hàng hoặc đặt lại đơn mới với phương thức thanh toán phù hợp. Trong trường hợp Quý khách đã bị trừ tiền vui lòng liên hệ hotline 0901.057.057 hoặc gửi email đến <a href="mailto:info@lotte.vn">info@lotte.vn</a> để được hỗ trợ.</p>
+<p><strong>2.1. Hủy đơn:</strong></p>
+<ul>
+<li>LOTTE Mart có thể hỗ trợ hủy đơn hàng nếu đơn hàng chưa được chuyển sang trạng thái “Chuẩn bị soạn hàng”. Quý khách có thể thực hiện hủy đơn hàng trực tiếp trên Website/ Ứng Dụng hoặc qua các kênh: Hotline/ KakaoTalk/ Email của LOTTE Mart.</li>
+<li>LOTTE Mart sẽ chủ động hủy đơn nếu đã cố gắng liên lạc với Quý khách 02 lần/ngày nhưng không thành công và gửi thông báo bằng tin nhắn qua ứng dụng LOTTE Mart để cập nhật đến Quý khách.</li>
+<li>LOTTE Mart có quyền từ chối hoặc hủy đơn hàng của quý khách liên quan đến lỗi hệ thống/ kỹ thuật, lỗi thanh toán (không thành công/ thanh toán chờ/ lỗi thanh toán) và gửi thông báo qua ứng dụng LOTTE Mart để cập nhật đến Quý khách.</li>
+<li>Ngoài ra, để đảm bảo tính công bằng cho Quý khách là người tiêu dùng cuối cùng của LOTTE Mart, LOTTE Mart cũng sẽ từ chối các đơn hàng không nhằm mục đích sử dụng cho cá nhân, mua hàng số lượng nhiều hoặc với mục đích mua đi bán lại, đơn hàng từ người dùng có dấu hiệu lừa đảo hoặc lạm dụng các mã giảm giá và chương trình khuyến mại, trường hợp một người dùng tạo nhiều Tài Khoản để được hưởng một chương trình khuyến mại nhiều lần, trục lợi phí vận chuyển, mã giảm giá hoặc lạm dụng các chương trình khuyến mại khác của LOTTE Mart.</li>
+<li>LOTTE Mart thực hiện cung cấp thông tin giá cả đúng cho người tiêu dùng. Tuy nhiên, khi xảy ra trường hợp giá sản phẩm không hiển thị hoặc không chính xác so với giá niêm yết tại siêu thị, LOTTE Mart sẽ liên hệ Quý khách hướng dẫn hoặc thông báo hủy đơn hàng.</li>
+</ul>
+<p><strong>2.2. Điều chỉnh hoặc thay đổi sản phẩm, phương thức thanh toán</strong></p>
+<ul>
+<li>Trong trường hợp Khách hàng đã bật nút nhận "Thông báo khi hết hàng" khi đặt đơn hàng, nếu trong quá trình xử lý đơn hàng có phát sinh trường hợp thiếu hoặc hết hàng, LOTTE Mart sẽ liên hệ Khách hàng để thực hiện điều chỉnh số lượng sản phẩm trong đơn hàng.</li>
+<li>Sau khi hoàn tất đặt hàng, Quý khách không thể thay đổi phương thức thanh toán đã chọn.</li>
+</ul>
+<p><strong>2.3. Giá trị sản phẩm</strong><strong>:</strong></p>
+<ul>
+<li>Bằng việc xác nhận đặt hàng, Quý khách đồng ý với giá cả đã được niêm yết trên từng sản phẩm tại thời điểm đặt hàng.</li>
+<li>Đối với hàng thực phẩm tươi sống (*), giá trị sản phẩm được cập nhật dựa trên trọng lượng và số lượng tại thời điểm xuất hàng. Do đó, giá trị sản phẩm thực tế (thực nhận) có thể chênh lệch với giá trị trên đơn hàng nhưng không vượt quá 5%.</li>
+<li>(*) Hàng thực phẩm tươi sống bao gồm: Rau củ, Đậu, Trái cây, Cá, Thịt, Trứng, Hải sản tươi sống, Bún tươi, Mì tươi, các loại thực phẩm tươi sống khác, các loại Bánh tươi thuộc quầy Bánh của LOTTE Mart.</li>
+</ul>
+<p><strong>3. Chính sách giao hàng</strong></p>
+<ul>
+<li><strong>Đối với các đơn hàng COD (cash on delivery) và đơn hàng có phương thức thanh toán trả trước:</strong> Thông qua hình thức thanh toán bằng thẻ tín dụng Visa/ Master/ JCB (trừ American Express và UnionPay), ATM, Momo, VNPay, VNPay QR, ZaloPay hoặc các hình thức thanh toán trả trước khác được cập nhật tại từng thời điểm:&nbsp;<br>- Nhân viên giao hàng của LOTTE Mart (bao gồm nhân viên nội bộ của LOTTE Mart và các đối tác giao hàng của LOTTE Mart - gọi tắt là Nhân viên giao hàng) sẽ đưa Ứng dụng giao hàng để người nhận hàng ký nhận, chữ ký của người nhận hàng trên Ứng dụng giao hàng của nhân viên giao hàng LOTTE Mart và đối tác giao hàng của LOTTE Mart là chữ ký có giá trị hợp lệ được người nhận hàng xác nhận rằng đã nhận hàng hóa thành công. Nhân viên giao hàng chụp hình các kiện hàng được giao tại địa chỉ nhận hàng của Quý khách và chụp hình Quý khách/ người nhận hàng tại địa chỉ nhận hàng (hình chụp sẽ thấy rõ khuôn mặt người nhận cùng với địa chỉ nhận hàng).<br>- Trong trường hợp Quý khách yêu cầu gửi hàng hóa ở Lễ tân/ cổng bảo vệ, nhân viên giao hàng sẽ đưa Ứng dụng giao hàng để người nhận hàng ký nhận trên ứng dụng và chụp hình người nhận tương tự như khi giao hàng trực tiếp cho Quý khách. Chữ ký người nhận hàng thay cho Quý khách ở trường hợp này có giá trị tương đương xác nhận đã nhận hàng hóa thành công thay cho Quý khách.<br>&nbsp;Trong trường hợp Quý khách/ người nhận không đồng ý chụp hình khi nhận hàng, hoặc Quý khách/ người nhận hàng không đồng ý ký tên xác nhận nhận hàng, LOTTE Mart hiểu rằng Quý khách <em>đồng thuận </em>cho việc Quý khách/ người nhận hàng đã nhận đầy đủ các kiện hàng hóa.<br>- Hệ thống LOTTE Mart sẽ lưu giữ các hình ảnh của Quý khách/ người nhận hàng trong hệ thống LOTTE Mart và tuân thủ theo Chính sách Bảo Mật Dữ liệu Cá nhân dành cho Khách hàng đã được công bố công khai trên website tại /vi-nsg/privacy hoặc tại văn phòng của LOTTE Mart Việt Nam.</li>
+<li>Để đảm bảo thời gian giao hàng, LOTTE Mart xin phép có thể không hỗ trợ ghép đơn hàng trong trường hợp Quý khách đặt nhiều đơn hàng trong ngày. Quý khách có thể hủy đơn hàng và đặt lại đơn hàng mới, hoặc chấp nhận mức phí giao hàng đã hiển thị trên đơn hàng.</li>
+<li>LOTTE Mart không cung cấp dịch vụ giao hàng tận cửa (Door-to-door service), do đó Quý khách vui lòng nhận hàng khu vực nhận hàng, cổng hoặc sảnh của tòa nhà/ chung cư/ căn hộ.</li>
+<li>Đối với đơn hàng đã được thanh toán bằng thẻ hoặc ví điện tử, nếu Quý khách có nhu cầu gửi hàng LOTTE Mart ở Lễ tân/ Cổng bảo vệ, Quý khách vui lòng thông báo với Lễ tân/ bảo vệ của Quý khách và LOTTE Mart ít nhất 30 phút trước giờ nhận hàng.</li>
+<li>Phí giao hàng được hiển thị trên ứng dụng LOTTE Mart, Quý khách vui lòng kiểm tra phí giao hàng trước khi hoàn tất đặt hàng.</li>
+<li>LOTTE Mart áp dụng giao hàng vào tất cả các ngày, kể cả cuối tuần và ngày lễ và không có khoản phụ phí nào phát sinh</li>
+<li>Trong trường hợp có phát sinh khiến thời gian giao hàng có thay đổi, LOTTE Mart sẽ thông báo đến Quý khách khung thời gian thay đổi phù hợp hơn trước khi giao hàng và sẽ thực hiện thay đổi khi có sự đồng ý của Quý khách</li>
+<li>Trong trường hợp Quý khách nhập sai địa chỉ giao hàng: nhân viên LOTTE Mart sẽ thông báo đến Quý khách và xin phép hủy đơn hàng. Trong trường hợp Quý khách cần đồng ý đặt lại đơn hàng với địa chỉ chính xác để hệ thống cập nhật đúng phí giao hàng ở đơn hàng mới của Quý khách.</li>
+</ul>
+<p>Thời gian và phí vận chuyển chi tiết như sau:</p>
+<style type="text/css"><!--td {border: 1px solid #cccccc;}br {mso-data-placement:same-cell;}--></style>
+<p><strong>3.1 Với dịch vụ Giao hàng nhanh 2 tiếng:</strong></p>
+<p>LOTTE MART nghiêm túc thực hiện theo Quy định của Cơ quan Nhà nước về sắp xếp đơn vị hành chính năm 2025.</p>
+<p>Trước đây, khoảng cách giao hàng được tính dựa trên bán kính từ phường/ quận theo địa chỉ của khách hàng đến siêu thị thực hiện giao hàng.</p>
+<p>Hiện tại, để đảm bảo tính chính xác và linh hoạt, từ ngày<strong> </strong>21 tháng 8 năm 2025 hệ thống sẽ tính khoảng cách dựa trên bán kính giữa địa chỉ khách hàng và siêu thị thực hiện giao hàng. Phí giao hàng sẽ được điều chỉnh tương ứng theo từng mức bán kính cụ thể. Việc này giúp phản ánh chính xác chi phí vận chuyển thực tế phát sinh. Thay đổi này không ảnh hưởng đến việc đặt hàng, Khách hàng vẫn có thể đặt hàng như bình thường tại Ứng dụng của LOTTE MART. Mức phí vận chuyển như bên dưới:</p>
+<table style="width: 100%;" width="100%">
+<thead>
+<tr>
+<td style="width: 10.6929%;" width="11%">
+<p><strong>Khu vực</strong></p>
+</td>
+<td style="width: 17.3653%;" width="18%">
+<p><strong>Bán kính</strong></p>
+</td>
+<td style="width: 22.0693%;">
+<p><strong>Phí giao hàng đơn ≤ 100.000 VND</strong></p>
+</td>
+<td style="width: 22.9264%;" width="35%">
+<p><strong>Phí giao hàng đơn&nbsp;</strong></p>
+<p><strong>&gt; 100.000 VND ≤ 150.000 VND</strong></p>
+</td>
+<td style="width: 26.8606%;" width="34%">
+<p><strong>Phí giao hàng đơn &gt; 150.000 VND</strong></p>
+</td>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="width: 10.6929%;" width="11%">
+<p>Khu vực 1</p>
+</td>
+<td style="width: 17.3653%;" width="18%">
+<p>0km &lt; x ≤ 3km</p>
+</td>
+<td style="width: 22.0693%;">
+<p>30.000</p>
+</td>
+<td style="width: 22.9264%;" width="35%">
+<p>5.000</p>
+</td>
+<td style="width: 26.8606%;" width="34%">
+<p>-</p>
+</td>
+</tr>
+<tr>
+<td style="width: 10.6929%;" width="11%">
+<p>Khu vực 2</p>
+</td>
+<td style="width: 17.3653%;" width="18%">
+<p>3km &lt; x ≤ 5km</p>
+</td>
+<td style="width: 22.0693%;">
+<p>45.000</p>
+</td>
+<td style="width: 22.9264%;" width="35%">
+<p>20.000</p>
+</td>
+<td style="width: 26.8606%;" width="34%">
+<p>-</p>
+</td>
+</tr>
+<tr>
+<td style="width: 10.6929%;" width="11%">
+<p>Khu vực 3</p>
+</td>
+<td style="width: 17.3653%;" width="18%">
+<p>5km &lt; x ≤ 7km</p>
+</td>
+<td style="width: 22.0693%;">
+<p>55.000</p>
+</td>
+<td style="width: 22.9264%;" width="35%">
+<p>30.000</p>
+</td>
+<td style="width: 26.8606%;" width="34%">
+<p>-</p>
+</td>
+</tr>
+<tr>
+<td style="width: 10.6929%;" width="11%">
+<p>Khu vực 4</p>
+</td>
+<td style="width: 17.3653%;" width="18%">
+<p>7km &lt; x ≤ 10km</p>
+</td>
+<td style="width: 22.0693%;">
+<p>65.000</p>
+</td>
+<td style="width: 22.9264%;" width="35%">
+<p>40.000</p>
+</td>
+<td style="width: 26.8606%;" width="34%">
+<p>-</p>
+</td>
+</tr>
+<tr>
+<td style="width: 10.6929%;" width="11%">
+<p>Khu vực 5</p>
+</td>
+<td style="width: 17.3653%;" width="18%">
+<p>10km &lt; x ≤ 12km</p>
+</td>
+<td style="width: 22.0693%;">
+<p>80.000</p>
+</td>
+<td style="width: 22.9264%;" width="35%">
+<p>55.000</p>
+</td>
+<td style="width: 26.8606%;" width="34%">
+<p>5.000</p>
+</td>
+</tr>
+<tr>
+<td style="width: 10.6929%;" width="11%">
+<p>Khu vực 6</p>
+</td>
+<td style="width: 17.3653%;" width="18%">
+<p>12km &lt; x ≤ 15km</p>
+</td>
+<td style="width: 22.0693%;">
+<p>90.000</p>
+</td>
+<td style="width: 22.9264%;" width="35%">
+<p>65.000</p>
+</td>
+<td style="width: 26.8606%;" width="34%">
+<p>15.000</p>
+</td>
+</tr>
+<tr>
+<td style="width: 10.6929%;" width="11%">
+<p>Khu vực 7</p>
+</td>
+<td style="width: 17.3653%;" width="18%">
+<p>15km &lt; x ≤ 20km</p>
+</td>
+<td style="width: 22.0693%;">
+<p>105.000</p>
+</td>
+<td style="width: 22.9264%;" width="35%">
+<p>80.000</p>
+</td>
+<td style="width: 26.8606%;" width="34%">
+<p>30.000</p>
+</td>
+</tr>
+<tr>
+<td style="width: 10.6929%;" width="11%">
+<p>Khu vực 8</p>
+</td>
+<td style="width: 17.3653%;" width="18%">
+<p>20km &lt; x ≤ 25km</p>
+</td>
+<td style="width: 22.0693%;">
+<p>125.000</p>
+</td>
+<td style="width: 22.9264%;" width="35%">
+<p>100.000</p>
+</td>
+<td style="width: 26.8606%;" width="34%">
+<p>50.000</p>
+</td>
+</tr>
+</tbody>
+</table>
+<p><strong>3.2 Với dịch vụ Giao hàng ngoại thành (bán kính &gt;300km):</strong></p>
+<ul>
+<li>Áp dụng cho các chi nhánh cửa hàng: Gò Vấp (TPHCM), Bình Dương, Đồng Nai, Nha Trang, Cần Thơ, Vinh (tỉnh Nghệ An), Đà Nẵng, Phan Thiết, Tây Hồ (TP. Hà Nội). Chi tiết các khu vực Quý khách vui lòng xem tại:&nbsp;<a href="/vi-nsg/Inter-provincial-delivery-routes">link</a>.</li>
+</ul>
+<ul>
+<li>Phí vận chuyển:</li>
+</ul>
+<p>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;- Đơn hàng&nbsp;nhỏ hơn hoặc bằng 8kg: Đồng giá 30.000đ</p>
+<p>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;- Đơn hàng&nbsp;lớn hơn 8kg: Tính thêm 5.000đ/kg</p>
+<p>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;-&nbsp;Phụ phí xa: Tính thêm 10.000đ/Đơn hàng</p>
+<ul>
+<li>Chỉ áp dụng cho đơn hàng thực phẩm khô (trừ hàng đông lạnh) và phi thực phẩm.</li>
+<li>Trọng lượng tối đa: 50kg.</li>
+<li>Hiện tại không áp dụng cho đơn COD.</li>
+</ul>
+<p><strong>3.3 Với dịch vụ Lấy hàng trực tiếp tại siêu thị:</strong></p>
+<ul>
+<li>Áp dụng cho các chi nhánh cửa hàng: Nam Sài Gòn, Quận 11, Gò Vấp, Tân Bình, Đồng Nai, Bình Dương, Phan Thiết, Đà Nẵng, Vinh, Ba Đình, Tây Hồ.</li>
+<li>Phí vận chuyển: Miễn phí</li>
+<li>Không áp dụng cho đơn COD</li>
+<li>Áp dụng cho đơn từ 100k</li>
+<li>Hướng dẫn đặt hàng:&nbsp;<a href="/vi-nsg/pickup-instruction-and-guideline">link</a>.</li>
+</ul>
+<p><strong><u>Lưu ý</u></strong>: Thời gian giao hàng sẽ được LOTTE Mart có thể chủ động thay đổi trong trường hợp:</p>
+<ul>
+<li>Quý khách không cung cấp chính xác, đầy đủ địa chỉ giao hàng, thiếu thông tin liên lạc hoặc liên hệ nhiều lần nhưng không thành công.</li>
+<li>Các trường hợp bất khả kháng: Thiên tai, mưa bão, hỏa hoạn, cháy nổ, bệnh dịch,…</li>
+<li>Các trường hợp khác: tình hình vận hành bị gián đoạn, lỗi kỹ thuật, phương tiện di chuyển gặp sự cố hoặc do đặc thù của một số đơn hàng có sản phẩm có trọng lượng lớn cần vận chuyển bằng ô tô bị hạn chế tuyến đường/ giờ di chuyển theo quy định của pháp luật.</li>
+</ul>
+<p><strong>4. Khuyến khích đồng kiểm khi giao hàng</strong></p>
+<ul>
+<li>LOTTE Mart sẽ giao hàng nguyên đai, nguyên kiện cho Quý khách.</li>
+<li>LOTTE Mart khuyến khích Quý khách kiểm tra các hình thức bên ngoài của hàng hóa như: tình trạng đóng gói, niêm phong, màu sắc, kích thước, hình dáng cùng nhân viên giao hàng ngay tại thời điểm nhận hàng.</li>
+<li>Việc kiểm tra sẽ không bao gồm mở seal riêng của từng sản phẩm (gây ảnh hưởng đến tem dán niêm phong, bao bì sản phẩm) hay kiểm tra sâu (cắm điện, sử dụng thử, ghi chép dữ liệu).</li>
+<li>Quý khách khi nhận hàng có thể sẽ ký vào phiếu giao hàng <strong>v</strong>à kiểm tra, đối chiếu chi tiết hàng hóa thực nhận với phiếu giao hàng (bao gồm cả sản phẩm hết hoặc không đủ số lượng)<span style="font-weight: 400;">.</span></li>
+<li>Trong trường hợp kiểm hàng cùng nhân viên và phát hiện kiện hàng hóa có dấu hiệu móp méo, dập nát, hư hỏng, có dấu hiệu đã qua sử dụng hoặc không đúng thông tin (người nhận hàng, tên mã sản phẩm, số lượng, kích cỡ), Quý khách có thể từ chối nhận sản phẩm ngay khi nhận hàng và thông báo cho LOTTE Mart để được đổi sản phẩm đúng.</li>
+</ul>
+<p><strong>5. Miễn trừ trách nhiệm đối với hóa đơn VAT</strong></p>
+<ul>
+<li>LOTTE Mart sẽ không chịu trách nhiệm nếu có vướng mắc về kê khai thuế đối với những hóa đơn từ 20 triệu đồng trở lên thanh toán bằng tiền mặt hoặc qua phương thức thanh toán cá nhân khác.</li>
+<li>LOTTE Mart không thể xuất VAT cho Quý khách khi đã qua ngày giao hàng thành công trong trường hợp Quý khách quên yêu cầu xuất VAT.</li>
+</ul>
+<p>Chính Sách Mua Hàng Trực Tuyến này được công bố công khai trên website tại /vi-nsg/faq/39 hoặc tại văn phòng, các cửa hàng của LOTTE Mart Việt Nam và có hiệu lực từ ngày 01/7/2023. Chỉnh sửa lần một tại mục 3.1 và có hiệu lực từ ngày 5/12/2025.</p>
+<style type="text/css"><!--td {border: 1px solid #cccccc;}br {mso-data-placement:same-cell;}--></style>
+<style type="text/css"><!--td {border: 1px solid #cccccc;}br {mso-data-placement:same-cell;}--></style>
+<style type="text/css"><!--td {border: 1px solid #cccccc;}br {mso-data-placement:same-cell;}--></style>
+<style type="text/css"><!--td {border: 1px solid #cccccc;}br {mso-data-placement:same-cell;}--></style>
+<style type="text/css"><!--td {border: 1px solid #cccccc;}br {mso-data-placement:same-cell;}--></style>
+<style type="text/css"><!--td {border: 1px solid #cccccc;}br {mso-data-placement:same-cell;}--></style>
+<style type="text/css"><!--td {border: 1px solid #cccccc;}br {mso-data-placement:same-cell;}--></style></div></div></div></div></main><footer id="footer" class="footer bg-light"><div class="footer-content"><div class="container"><div class="row"><div class="col-12 col-md-6 col-lg-3 mb-3"><div class="d-none d-md-block"><h3 class="fontsize-18">Về LOTTE Mart</h3><ul class="list-unstyled fontsize-14 list-color-dark-gray"><li><a title="Giới Thiệu" href="/vi-nsg/about-us">Giới Thiệu</a></li><li><a title="Chính Sách Bảo Mật" href="/vi-nsg/privacy">Chính Sách Bảo Mật</a></li><li><a title="Điều kiện &amp; Điều khoản" href="/vi-nsg/membership-policy">Điều kiện &amp; Điều khoản</a></li></ul></div><div class="d-block d-md-none"><h3 class="fontsize-18">Liên kết trang web</h3><div class="dropdown dropdown-type row g-0 align-items-center"><button class="dropdown-toggle dropdown-toggle col text-start" data-bs-toggle="dropdown" type="button" aria-expanded="true">Về LOTTE Mart</button><div class="dropdown-menu w-100"><ul class="menu-content checked-type"><li><a title="Giới Thiệu" href="/vi-nsg/about-us">Giới Thiệu</a></li><li><a title="Chính Sách Bảo Mật" href="/vi-nsg/privacy">Chính Sách Bảo Mật</a></li><li><a title="Điều kiện &amp; Điều khoản" href="/vi-nsg/membership-policy">Điều kiện &amp; Điều khoản</a></li></ul></div></div></div></div><div class="col-12 col-md-6 col-lg-3 mb-4m"><div class="d-none d-md-block"><h3 class="fontsize-18">Chăm Sóc Khách Hàng</h3><ul class="list-unstyled fontsize-14 list-color-dark-gray"><li><a title="Câu Hỏi Thường Gặp" href="/vi-nsg/faq">Câu Hỏi Thường Gặp</a></li><li><a title="Quản Lý Tài Khoản" href="/vi-nsg/account-management">Quản Lý Tài Khoản</a></li><li><a title="Chính Sách Mua Hàng" href="/vi-nsg/shipping-delivery">Chính Sách Mua Hàng</a></li><li><a title="Đổi Trả Và Hoàn Tiền" href="/vi-nsg/exchange-refund">Đổi Trả Và Hoàn Tiền</a></li><li><a title="Chính Sách, Điều Kiện Giao Dịch" href="/vi-nsg/faq?tab=policy">Chính Sách, Điều Kiện Giao Dịch</a></li></ul></div><div class="d-block d-md-none"><div class="dropdown dropdown-type row g-0 align-items-center"><button class="dropdown-toggle dropdown-toggle col text-start" data-bs-toggle="dropdown" type="button" aria-expanded="true">Chăm Sóc Khách Hàng</button><div class="dropdown-menu w-100"><ul class="menu-content checked-type"><li><a title="Câu Hỏi Thường Gặp" href="/vi-nsg/faq">Câu Hỏi Thường Gặp</a></li><li><a title="Quản Lý Tài Khoản" href="/vi-nsg/account-management">Quản Lý Tài Khoản</a></li><li><a title="Chính Sách Mua Hàng" href="/vi-nsg/shipping-delivery">Chính Sách Mua Hàng</a></li><li><a title="Đổi Trả Và Hoàn Tiền" href="/vi-nsg/exchange-refund">Đổi Trả Và Hoàn Tiền</a></li><li><a title="Chính Sách, Điều Kiện Giao Dịch" href="/vi-nsg/faq?tab=policy">Chính Sách, Điều Kiện Giao Dịch</a></li></ul></div></div></div></div><div class="col-12 col-md-6 col-lg-3 mb-4m"><h3 class="fontsize-18">Phương Thức Thanh Toán</h3><div class="mb-3"><img class="mb-1 me-3s" src="/asset/images/icon-visa-3.svg" alt="Visa Image" width="48" height="48"><img class="mb-1 me-3s" src="/asset/images/icon-mastercard-3.svg" alt="Master Card Image" width="48" height="48"><img class="mb-1 me-3s" src="/asset/images/icon-jcb-3.svg" alt="Jcb Card Image" width="48" height="48"><br class="mob-h"><img class="mb-1 me-3s" src="/asset/images/icon-cash-f.svg" alt="Cash Image" width="48" height="48"><img class="mb-1 me-3s" src="/asset/images/zalopay-f.svg" alt="ZaloPay Image" width="48" height="48"><img class="mb-1 me-3s" src="/asset/images/icon-shopeepay.svg" alt="ShopeePay Image" width="38" height="38"><br class="mob-h"><img class="mb-1 me-3s" src="/asset/images/vnpay-f.svg" alt="VNPay Image" width="48" height="48"><img class="mb-1 me-3s" src="/asset/images/icon-momo-f.svg" alt="Momo Image" width="48" height="48"><img class="mb-1 me-3s" src="/asset/images/logo-cnf.svg" alt="CNF Logo" width="48" height="48"></div><h3 class="fontsize-18">Chứng Nhận Bởi</h3><p class="mb-1"><a href="http://online.gov.vn/Home/WebDetails/51612?AspxAutoDetectCookieSupport=1" target="_blank"><img src="/asset/images/img-bct-dathongbao.png" alt="Đã đăng ký Bộ Công Thương" width="128" height="48"></a></p></div><div class="col-12 col-md-6 col-lg-3 mb-4m"><h3 class="fontsize-18">Kết Nối Với Chúng Tôi</h3><div class="socials-link mb-3"><a href="https://www.facebook.com/LotteMartVN" target="_blank"><img alt="" aria-label="fb" loading="lazy" width="48" height="48" decoding="async" data-nimg="1" class="mb-2 me-3s" style="color:transparent" src="/asset/images/icon-facebook-3.svg"></a><a href="https://www.youtube.com/channel/UCNhksIAgeG6t_r2wviCwCfg" target="_blank"><img alt="" aria-label="yt" loading="lazy" width="48" height="48" decoding="async" data-nimg="1" class="mb-2 me-3s" style="color:transparent" src="/asset/images/icon-youtube-3.svg"></a><a href="https://www.tiktok.com/@lottemartonline" class="mb-2" target="_blank"><img alt="" aria-label="tt" loading="lazy" width="48" height="48" decoding="async" data-nimg="1" class="mb-2" style="color:transparent" src="/asset/images/icon-tiktok-3.svg"></a></div><h3 class="fontsize-18">Tải Ứng Dụng LOTTE Mart</h3><div class="row row-cols-auto row-cols-lg-1 gx-2"><div class="col mb-2"><a href="https://apps.apple.com/us/app/lotte-mart-vietnam/id6447617674" target="_blank" title="App Store"><img alt="App Store" aria-label="ap" loading="lazy" width="152" height="44" decoding="async" data-nimg="1" style="color:transparent" src="/asset/images/appstore.svg"></a></div><div class="col mb-0"><a href="https://play.google.com/store/apps/details?id=vn.ldcc.martonline" target="_blank" title="Google Play"><img alt="Google Play" aria-label="gg" loading="lazy" width="152" height="44" decoding="async" data-nimg="1" style="color:transparent" src="/asset/images/googleplay.svg"></a></div></div></div></div><div class="row"><div class="col"><h3 class="fontsize-18">CÔNG TY CỔ PHẦN TRUNG TÂM THƯƠNG MẠI LOTTE VIỆT NAM</h3><div class="fontsize-14"><p><strong>Trụ sở chính: </strong> 469 Nguyễn Hữu Thọ, Phường Tân Hưng, TP.Hồ Chí Minh, Việt Nam</p><p><strong>Giờ hoạt động: </strong> 8:00 - 21:00</p><p class="mb-3"><i class="icons icon-headphone me-1"></i> <strong class="me-3">0901 057 057</strong><i class="icons icon-mail me-2"></i> <a class="btn-link" href="mailto:info@lottemart.vn">info@lottemart.vn</a></p><p>Người đại diện theo pháp luật: SHIN JUBACK – Chức danh: Tổng giám đốc</p><p class="mb-4">Giấy chứng nhận Đăng ký kinh doanh số 0304741634 do Sở Kế hoạch và Đầu tư Thành phố Hồ Chí Minh cấp ngày 24/10/2006</p><hr class="mb-4"><p class="txt-grayer">© 2023 - Bản quyền của Công ty Cổ phần Trung Tâm Thương Mại LOTTE Việt Nam</p></div></div></div></div></div></footer><div class="Toastify"></div></div><div></div></body></html>

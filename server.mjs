@@ -322,6 +322,11 @@ const server = http.createServer(async (req, res) => {
     if (norm === '/search') {
       return page('search.html');
     }
+    // 其他 /vi-nsg/... 页面（静态内容页、专题落地页）：有快照就直出
+    if (norm.startsWith('/vi-nsg/')) {
+      const rel = `${norm.replace(/^\//, '')}/index.html`;
+      if (await serveFile(res, rel)) return;
+    }
     if (norm === '/sw.js' || norm === '/service-worker.js') {
       return send(res, 404, 'no service worker', 'text/plain; charset=utf-8');
     }

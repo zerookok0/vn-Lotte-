@@ -189,6 +189,23 @@ location /vi-nsg/product/  { try_files $uri /product.html; }
 
 ---
 
+## 页面清单
+
+| 类型 | 数量 | 路径 |
+|---|---|---|
+| 首页 | 1 | `/` |
+| 商品详情 | 427 | `/vi-nsg/product/<slug>` |
+| 分类列表 | 399 | `/vi-nsg/category/<slug>` |
+| 专题落地页 | 19 | `/vi-nsg/tp1|tp3|tp4|tp5|tp7/...` |
+| 静态内容页 | 7 | `/vi-nsg/{about-us,privacy,faq,shipping-delivery,exchange-refund,account-management,membership-policy}` |
+| 购物车 / 结账 / 成功 / 搜索 / 登录 | 5 | `/cart` `/checkout` `/order/<号>` `/search` `/login` |
+
+合计 **858 个页面**，全部是原站真实快照（除了结账三件套是自建的访客流程）。
+
+### 关于「Xem thêm」分页
+
+原站分类页的「Xem thêm」是 `<a class="btn-view-more">`，点下去跳 `/login?callbackUrl=...` —— **原站自己就要登录才加载更多**。克隆站保持一致，点击同样进登录页，不做额外的客户端分页。
+
 ## 已知限制
 
 1. **每个商品 / 每个分类都有真实快照页**（427 商品 + 399 分类 = 826 页，位于 `public/vi-nsg/{product,category}/<slug>/index.html`），点击任意商品都会进入自己的页面。

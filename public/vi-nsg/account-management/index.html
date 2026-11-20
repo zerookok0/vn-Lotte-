@@ -1,0 +1,432 @@
+<!DOCTYPE html><html lang="vi" style=""><head>
+<script>
+/* [ltm-clone] 契约 §3 ①②：UTM 捕获 + 购物车骨架（构建时内联，不依赖服务端注入）
+   同步执行，必须排在 /bp/connector.js 之前。购物车从 cookie 还原，
+   这样 connector 第一次 getCart() 就能拿到正确金额。 */
+(function () {
+  var K = ['utm_source','utm_medium','utm_campaign','utm_term','utm_content','utm_id',
+           'fbclid','ttclid','gclid','adset_id','campaign_id','sub1','sub2','sub3','sub4','sub5'];
+
+  function cookie(name) {
+    var m = document.cookie.match(new RegExp('(?:^|;\\s*)' + name + '=([^;]+)'));
+    return m ? decodeURIComponent(m[1]) : '';
+  }
+  function grab(q) {
+    var o = {}, p = (q || '').replace(/^\?/, '').split('&');
+    for (var i = 0; i < p.length; i++) {
+      var kv = p[i].split('=');
+      if (kv.length < 2) continue;
+      try {
+        var k = decodeURIComponent(kv[0]);
+        if (K.indexOf(k) !== -1) o[k] = decodeURIComponent(kv.slice(1).join('='));
+      } catch (e) {}
+    }
+    return o;
+  }
+  function loadUTM() {
+    try { return JSON.parse(sessionStorage.getItem('bp_utm') || '{}'); } catch (e) { return {}; }
+  }
+  function utmSave(o) {
+    try { sessionStorage.setItem('bp_utm', JSON.stringify(o)); } catch (e) {}
+    try {
+      var d = new Date(); d.setTime(d.getTime() + 7 * 864e5);
+      document.cookie = 'bp_utm=' + encodeURIComponent(JSON.stringify(o)) +
+        '; expires=' + d.toUTCString() + '; path=/; SameSite=Lax';
+    } catch (e) {}
+  }
+
+  var cur = loadUTM(), add = false, m;
+  m = grab(location.search);
+  for (var a in m) { cur[a] = m[a]; add = true; }
+  try {
+    var nav = performance.getEntriesByType && performance.getEntriesByType('navigation')[0];
+    if (nav && nav.name) {
+      m = grab(nav.name.split('?')[1] || '');
+      for (var b in m) { cur[b] = m[b]; add = true; }
+    }
+  } catch (e) {}
+  try {
+    if (document.referrer) {
+      m = grab(document.referrer.split('?')[1] || '');
+      for (var c in m) { if (!cur[c]) { cur[c] = m[c]; add = true; } }
+    }
+  } catch (e) {}
+  if (add) utmSave(cur);
+  window.__BP_UTM__ = cur;
+  window.BP_UTM = cur;
+
+  /* ---- 购物车：cookie 里是 sku:qty:price,... ---- */
+  var raw = cookie('ltm_cart'), items = [], total = 0;
+  if (raw) {
+    var parts = raw.split(',');
+    for (var i = 0; i < parts.length && i < 50; i++) {
+      var seg = parts[i].split(':');
+      if (!seg[0]) continue;
+      var qty = parseInt(seg[1], 10) || 1;
+      var price = parseInt(seg[2], 10) || 0;
+      items.push({ sku: seg[0], name: '', qty: qty, price: price });
+      total += price * qty;
+    }
+  }
+  var amountText = '0 ₫';
+  try {
+    amountText = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 }).format(total) + ' ₫';
+  } catch (e) { amountText = String(total) + ' ₫'; }
+
+  window.__BP_CART__ = {
+    order_number: cookie('bp_oid') || '',
+    currency: 'VND',
+    total: total,
+    total_amount: amountText,
+    items: items,
+    locale: 'vi'
+  };
+  window.BP_CART = window.__BP_CART__;
+})();
+</script>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width"><meta property="og:title" content="LOTTE Mart Viet Nam"><meta name="description" content="Trang web/Ứng dụng Đi chợ Online chính thức của LOTTE Mart Việt Nam. Nhiều ưu đãi, mã giảm giá, voucher hấp dẫn."><meta property="og:image" content="/media/.thumbswysiwyg/review.png"><meta property="og:url" content=""><meta property="og:type" content="website" data-react-helmet="true"><meta name="zalo-platform-site-verification" content="KuxcTfJwGr9M-SDEa8Xn4XILzXZuwYD2CJC"><title>Chính Sách Quản Lý Tài Khoản Trực Tuyến </title><meta name="description" content="Chính Sách Quản Lý Tài Khoản Trực Tuyến "><meta name="application-name" content="LOTTE Mart Online"><meta property="og:title" content="Chính Sách Quản Lý Tài Khoản Trực Tuyến "><meta property="og:url" content="/vi-nsg/account-management"><meta property="og:description" content="Chính Sách Quản Lý Tài Khoản Trực Tuyến "><link rel="canonical" href="/vi-nsg/account-management"><meta name="copyright" content="© 2023 - Bản quyền của Công ty Cổ phần Trung Tâm Thương Mại LOTTE Việt Nam"><meta name="next-head-count" content="16"><link rel="manifest" href="/manifest.json"><link rel="icon" href="/media/favicon.ico"><meta name="theme-color" content="#fff"><link rel="stylesheet" type="text/css" href="/asset/css/bootstrap.min.css"><link rel="preload" href="/_next/static/media/8ff6965283b25d97-s.p.ttf" as="font" type="font/ttf" crossorigin="anonymous" data-next-font="size-adjust"><link rel="preload" href="/_next/static/media/a5947e779e3f9830-s.p.ttf" as="font" type="font/ttf" crossorigin="anonymous" data-next-font="size-adjust"><link rel="preload" href="/_next/static/media/bc297ed5b23d4574-s.p.ttf" as="font" type="font/ttf" crossorigin="anonymous" data-next-font="size-adjust"><link rel="preload" href="/_next/static/media/530bae4d999e632d-s.p.ttf" as="font" type="font/ttf" crossorigin="anonymous" data-next-font="size-adjust"><link rel="preload" href="/_next/static/css/bfe73692512055e8.css" as="style"><link rel="stylesheet" href="/_next/static/css/bfe73692512055e8.css" data-n-g=""><link rel="preload" href="/_next/static/css/375a85a193efa97a.css" as="style"><link rel="stylesheet" href="/_next/static/css/375a85a193efa97a.css"><noscript data-n-css=""></noscript><style>@font-face {
+  font-family: 'icomoon';
+  src: url(data:application/vnd.ms-fontobject;base64,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);
+  src: url(data:application/vnd.ms-fontobject;base64,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?#iefix) format('embedded-opentype'), url(data:font/ttf;base64,AAEAAAALAIAAAwAwT1MvMg8SB18AAAC8AAAAYGNtYXCojqiGAAABHAAAAIxnYXNwAAAAEAAAAagAAAAIZ2x5ZiFI0NgAAAGwAAAEPGhlYWQQ7Z+HAAAF7AAAADZoaGVhB8ID0AAABiQAAAAkaG10eDIAARgAAAZIAAAAPGxvY2EGTge4AAAGhAAAACBtYXhwABMAVgAABqQAAAAgbmFtZZlKCfsAAAbEAAABhnBvc3QAAwAAAAAITAAAACAAAwPVAZAABQAAApkCzAAAAI8CmQLMAAAB6wAzAQkAAAAAAAAAAAAAAAAAAAABEAAAAAAAAAAAAAAAAAAAAABAAADqYAPA/8AAQAPAAEAAAAABAAAAAAAAAAAAAAAgAAAAAAADAAAAAwAAABwAAQADAAAAHAADAAEAAAAcAAQAcAAAABgAEAADAAgAAQAg6WjphOnH6gvqD+o06jjqYP/9//8AAAAAACDpZ+mE6cfqCuoP6jTqOOpf//3//wAB/+MWnRaCFkAV/hX7FdcV1BWuAAMAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAH//wAPAAEAAAAAAAAAAAACAAA3OQEAAAAAAQAAAAAAAAAAAAIAADc5AQAAAAABAAAAAAAAAAAAAgAANzkBAAAAAAEAQP/AA4oDwAARAAAFNjc2JicmBxUJARU2Fx4BBwYC+isTEzhVVqj+gAGAyXFyRignQE1bW5ozMgT+AYABgPgFTk7siokAAAEAdv/AA8ADwAASAAABNQkBNSYHDgEXFhcmJyY2NzYXAkABgP6AqFZVOBMTK2knKEZycckCyPj+gP6A/gQyM5pbW01yiYrsTk4FAAABAAD/wAQAA8AANQAAASE3LgEjIgYHDgEVFBYXHgEzMjY3PgE3FwYHDgEHBiMiJy4BJyY1NDc+ATc2MzIXHgEXFhc3BAD+gJA3jE1NjDc2Ojo2N4xNTYw3BAkEYCMrK2I2NjpqXV6LKCgoKIteXWo1MjJcKSkjlgJAkDY6OjY3jE1NjDc2Ojo2BQkFVCghIC0NDCgoi15dampdXosoKAoLJxscI5YAAAADAAAAAAPAA4AABgALAA8AAAkCMxEzEQMhESERByM1MwLg/wD/AKDAYP4gA8BAgIACAP8AAQABgP6A/wD/AAEAgEAAAAEAAP/ABAADwAAjAAABIRE0JisBIgYVESEiBh0BFBYzIREUFjsBMjY1ESEyNj0BNCYD4P6gEw3ADRP+oA0TEw0BYBMNwA0TAWANExMCQAFgDRMTDf6gEw3ADRP+oA0TEw0BYBMNwA0TAAAAAAEAAAFABAACQAAPAAATFRQWMyEyNj0BNCYjISIGABMNA8ANExMN/EANEwIgwA0TEw3ADRMTAAAAAQAC/8ID/gO+AFMAACU4ATEJATgBMT4BNzYmLwEuAQcOAQc4ATEJATgBMS4BJyYGDwEOARceARc4ATEJATgBMQ4BBwYWHwEeATc+ATc4ATEJATgBMR4BFxY2PwE+AScuAQP3/skBNwIEAQMDB5MHEgkDBgL+yf7JAgYDCRIHkwcDAwEEAgE3/skCBAEDAweTBxIJAwYCATcBNwIGAwkSB5MHAwMBBIkBNwE3AgYDCRIHkwcDAwEEAv7JATcCBAEDAweTBxIJAwYC/sn+yQIGAwkSB5MHAwMBBAIBN/7JAgQBAwMHkwcSCQMGAAABAAD/4APgA6AABgAACQERIREhEQPg/iD+AAIAAcAB4P7g/oD+4AAAAQAg/+AEAAOgAAYAABMBESERIREgAeACAP4AAcD+IAEgAYABIAAAAAIAAAAABAADgAAJABcAACUzByczESM3FyMlEScjETMVITUzESMHEQOAgKCggICgoID/AEDAgP6AgMBAwMDAAgDAwMD/AID9QEBAAsCAAQAAAgBA/8ADwAOAAAkAFwAAJRUnNxUhNRcHNRMRJyMRMxUhNTMRIwcRAQDAwAIAwMBAQMCA/oCAwEBAgKCggICgoIADQP8AgP5AQEABwIABAAABAAAAAAAAt6ePtV8PPPUACwQAAAAAANbnrYUAAAAA1uethQAA/8AEAAPAAAAACAACAAAAAAAAAAEAAAPA/8AAAAQAAAAAAAQAAAEAAAAAAAAAAAAAAAAAAAAPBAAAAAAAAAAAAAAAAgAAAAQAAEAEAAB2BAAAAAQAAAAEAAAABAAAAAQAAAIEAAAABAAAIAQAAAAEAABAAAAAAAAKABQAHgBCAGgAvADeARQBMAGmAboBzgH2Ah4AAQAAAA8AVAADAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAA4ArgABAAAAAAABAAcAAAABAAAAAAACAAcAYAABAAAAAAADAAcANgABAAAAAAAEAAcAdQABAAAAAAAFAAsAFQABAAAAAAAGAAcASwABAAAAAAAKABoAigADAAEECQABAA4ABwADAAEECQACAA4AZwADAAEECQADAA4APQADAAEECQAEAA4AfAADAAEECQAFABYAIAADAAEECQAGAA4AUgADAAEECQAKADQApGljb21vb24AaQBjAG8AbQBvAG8AblZlcnNpb24gMS4wAFYAZQByAHMAaQBvAG4AIAAxAC4AMGljb21vb24AaQBjAG8AbQBvAG8Abmljb21vb24AaQBjAG8AbQBvAG8AblJlZ3VsYXIAUgBlAGcAdQBsAGEAcmljb21vb24AaQBjAG8AbQBvAG8AbkZvbnQgZ2VuZXJhdGVkIGJ5IEljb01vb24uAEYAbwBuAHQAIABnAGUAbgBlAHIAYQB0AGUAZAAgAGIAeQAgAEkAYwBvAE0AbwBvAG4ALgAAAAMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=) format('truetype'), url(data:font/woff;base64,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) format('woff'), url(data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBzdGFuZGFsb25lPSJubyI/Pg0KPCFET0NUWVBFIHN2ZyBQVUJMSUMgIi0vL1czQy8vRFREIFNWRyAxLjEvL0VOIiAiaHR0cDovL3d3dy53My5vcmcvR3JhcGhpY3MvU1ZHLzEuMS9EVEQvc3ZnMTEuZHRkIiA+DQo8c3ZnIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+DQo8bWV0YWRhdGE+R2VuZXJhdGVkIGJ5IEljb01vb248L21ldGFkYXRhPg0KPGRlZnM+DQo8Zm9udCBpZD0iaWNvbW9vbiIgaG9yaXotYWR2LXg9IjEwMjQiPg0KPGZvbnQtZmFjZSB1bml0cy1wZXItZW09IjEwMjQiIGFzY2VudD0iOTYwIiBkZXNjZW50PSItNjQiIC8+DQo8bWlzc2luZy1nbHlwaCBob3Jpei1hZHYteD0iMTAyNCIgLz4NCjxnbHlwaCB1bmljb2RlPSImI3gyMDsiIGhvcml6LWFkdi14PSI1MTIiIGQ9IiIgLz4NCjxnbHlwaCB1bmljb2RlPSImI3hlOTY3OyIgZ2x5cGgtbmFtZT0icm90YXRlLWxlZnQiIGQ9Ik03NjEuODYyLTY0YzExMy43MjYgMjA2LjAzMiAxMzIuODg4IDUyMC4zMDYtMzEzLjg2MiA1MDkuODI0di0yNTMuODI0bC0zODQgMzg0IDM4NCAzODR2LTI0OC4zNzJjNTM0Ljk2MiAxMy45NDIgNTk0LjU3LTQ3Mi4yMTQgMzEzLjg2Mi03NzUuNjI4eiIgLz4NCjxnbHlwaCB1bmljb2RlPSImI3hlOTY4OyIgZ2x5cGgtbmFtZT0icm90YXRlLXJpZ2h0IiBkPSJNNTc2IDcxMS42Mjh2MjQ4LjM3MmwzODQtMzg0LTM4NC0zODR2MjUzLjgyNGMtNDQ2Ljc1IDEwLjQ4Mi00MjcuNTg4LTMwMy43OTItMzEzLjg2LTUwOS44MjQtMjgwLjcxMiAzMDMuNDE0LTIyMS4xIDc4OS41NyAzMTMuODYgNzc1LjYyOHoiIC8+DQo8Z2x5cGggdW5pY29kZT0iJiN4ZTk4NDsiIGdseXBoLW5hbWU9InJlc2V0IiBkPSJNMTAyNCA1NzZoLTM4NGwxNDMuNTMgMTQzLjUzYy03Mi41MyA3Mi41MjYtMTY4Ljk2IDExMi40Ny0yNzEuNTMgMTEyLjQ3cy0xOTktMzkuOTQ0LTI3MS41My0xMTIuNDdjLTcyLjUyNi03Mi41My0xMTIuNDctMTY4Ljk2LTExMi40Ny0yNzEuNTNzMzkuOTQ0LTE5OSAxMTIuNDctMjcxLjUzYzcyLjUzLTcyLjUyNiAxNjguOTYtMTEyLjQ3IDI3MS41My0xMTIuNDdzMTk5IDM5Ljk0NCAyNzEuNTI4IDExMi40NzJjNi4wNTYgNi4wNTQgMTEuODYgMTIuMjkyIDE3LjQ1NiAxOC42NjhsOTYuMzItODQuMjgyYy05My44NDYtMTA3LjE2Ni0yMzEuNjY0LTE3NC44NTgtMzg1LjMwNC0xNzQuODU4LTI4Mi43NyAwLTUxMiAyMjkuMjMtNTEyIDUxMnMyMjkuMjMgNTEyIDUxMiA1MTJjMTQxLjM4NiAwIDI2OS4zNjgtNTcuMzI2IDM2Mi4wMTYtMTQ5Ljk4NGwxNDkuOTg0IDE0OS45ODR2LTM4NHoiIC8+DQo8Z2x5cGggdW5pY29kZT0iJiN4ZTljNzsiIGdseXBoLW5hbWU9ImRvd25sb2FkIiBkPSJNNzM2IDUxMmwtMjU2LTI1Ni0yNTYgMjU2aDE2MHYzODRoMTkydi0zODR6TTQ4MCAyNTZoLTQ4MHYtMjU2aDk2MHYyNTZoLTQ4MHpNODk2IDEyOGgtMTI4djY0aDEyOHYtNjR6IiAvPg0KPGdseXBoIHVuaWNvZGU9IiYjeGVhMGE7IiBnbHlwaC1uYW1lPSJ6b29tLWluIiBkPSJNOTkyIDU3NmgtMzUydjM1MmMwIDE3LjY3Mi0xNC4zMjggMzItMzIgMzJoLTE5MmMtMTcuNjcyIDAtMzItMTQuMzI4LTMyLTMydi0zNTJoLTM1MmMtMTcuNjcyIDAtMzItMTQuMzI4LTMyLTMydi0xOTJjMC0xNy42NzIgMTQuMzI4LTMyIDMyLTMyaDM1MnYtMzUyYzAtMTcuNjcyIDE0LjMyOC0zMiAzMi0zMmgxOTJjMTcuNjcyIDAgMzIgMTQuMzI4IDMyIDMydjM1MmgzNTJjMTcuNjcyIDAgMzIgMTQuMzI4IDMyIDMydjE5MmMwIDE3LjY3Mi0xNC4zMjggMzItMzIgMzJ6IiAvPg0KPGdseXBoIHVuaWNvZGU9IiYjeGVhMGI7IiBnbHlwaC1uYW1lPSJ6b29tLW91dCIgZD0iTTAgNTQ0di0xOTJjMC0xNy42NzIgMTQuMzI4LTMyIDMyLTMyaDk2MGMxNy42NzIgMCAzMiAxNC4zMjggMzIgMzJ2MTkyYzAgMTcuNjcyLTE0LjMyOCAzMi0zMiAzMmgtOTYwYy0xNy42NzIgMC0zMi0xNC4zMjgtMzItMzJ6IiAvPg0KPGdseXBoIHVuaWNvZGU9IiYjeGVhMGY7IiBnbHlwaC1uYW1lPSJjbG9zZSIgZD0iTTEwMTQuNjYyIDEzNy4zNGMtMC4wMDQgMC4wMDQtMC4wMDggMC4wMDgtMC4wMTIgMC4wMTBsLTMxMC42NDQgMzEwLjY1IDMxMC42NDQgMzEwLjY1YzAuMDA0IDAuMDA0IDAuMDA4IDAuMDA2IDAuMDEyIDAuMDEwIDMuMzQ0IDMuMzQ2IDUuNzYyIDcuMjU0IDcuMzEyIDExLjQxNiA0LjI0NiAxMS4zNzYgMS44MjQgMjQuNjgyLTcuMzI0IDMzLjgzbC0xNDYuNzQ2IDE0Ni43NDZjLTkuMTQ4IDkuMTQ2LTIyLjQ1IDExLjU2Ni0zMy44MjggNy4zMi00LjE2LTEuNTUtOC4wNzAtMy45NjgtMTEuNDE4LTcuMzEgMC0wLjAwNC0wLjAwNC0wLjAwNi0wLjAwOC0wLjAxMGwtMzEwLjY0OC0zMTAuNjUyLTMxMC42NDggMzEwLjY1Yy0wLjAwNCAwLjAwNC0wLjAwNiAwLjAwNi0wLjAxMCAwLjAxMC0zLjM0NiAzLjM0Mi03LjI1NCA1Ljc2LTExLjQxNCA3LjMxLTExLjM4IDQuMjQ4LTI0LjY4MiAxLjgyNi0zMy44My03LjMybC0xNDYuNzQ4LTE0Ni43NDhjLTkuMTQ4LTkuMTQ4LTExLjU2OC0yMi40NTItNy4zMjItMzMuODI4IDEuNTUyLTQuMTYgMy45Ny04LjA3MiA3LjMxMi0xMS40MTYgMC4wMDQtMC4wMDIgMC4wMDYtMC4wMDYgMC4wMTAtMC4wMTBsMzEwLjY1LTMxMC42NDgtMzEwLjY1LTMxMC42NTJjLTAuMDAyLTAuMDA0LTAuMDA2LTAuMDA2LTAuMDA4LTAuMDEwLTMuMzQyLTMuMzQ2LTUuNzYtNy4yNTQtNy4zMTQtMTEuNDE0LTQuMjQ4LTExLjM3Ni0xLjgyNi0yNC42ODIgNy4zMjItMzMuODNsMTQ2Ljc0OC0xNDYuNzQ2YzkuMTUtOS4xNDggMjIuNDUyLTExLjU2OCAzMy44My03LjMyMiA0LjE2IDEuNTUyIDguMDcwIDMuOTcgMTEuNDE2IDcuMzEyIDAuMDAyIDAuMDA0IDAuMDA2IDAuMDA2IDAuMDEwIDAuMDEwbDMxMC42NDggMzEwLjY1IDMxMC42NDgtMzEwLjY1YzAuMDA0LTAuMDAyIDAuMDA4LTAuMDA2IDAuMDEyLTAuMDA4IDMuMzQ4LTMuMzQ0IDcuMjU0LTUuNzYyIDExLjQxNC03LjMxNCAxMS4zNzgtNC4yNDYgMjQuNjg0LTEuODI2IDMzLjgyOCA3LjMyMmwxNDYuNzQ2IDE0Ni43NDhjOS4xNDggOS4xNDggMTEuNTcgMjIuNDU0IDcuMzI0IDMzLjgzLTEuNTUyIDQuMTYtMy45NyA4LjA2OC03LjMxNCAxMS40MTR6IiAvPg0KPGdseXBoIHVuaWNvZGU9IiYjeGVhMzQ7IiBnbHlwaC1uYW1lPSJuZXh0IiBkPSJNOTkyIDQ0OGwtNDgwIDQ4MHYtMjg4aC01MTJ2LTM4NGg1MTJ2LTI4OHoiIC8+DQo8Z2x5cGggdW5pY29kZT0iJiN4ZWEzODsiIGdseXBoLW5hbWU9InByZXYiIGQ9Ik0zMiA0NDhsNDgwLTQ4MHYyODhoNTEydjM4NGgtNTEydjI4OHoiIC8+DQo8Z2x5cGggdW5pY29kZT0iJiN4ZWE1ZjsiIGdseXBoLW5hbWU9InNjYWxlWSIgZD0iTTg5NiAxOTJoMTI4bC0xNjAtMTkyLTE2MCAxOTJoMTI4djUxMmgtMTI4bDE2MCAxOTIgMTYwLTE5MmgtMTI4ek02NDAgODk2di0yNTZsLTY0IDEyOGgtMTkydi03MDRoMTI4di02NGgtMzg0djY0aDEyOHY3MDRoLTE5MmwtNjQtMTI4djI1NnoiIC8+DQo8Z2x5cGggdW5pY29kZT0iJiN4ZWE2MDsiIGdseXBoLW5hbWU9InNjYWxlWCIgZD0iTTI1NiA2NHYtMTI4bC0xOTIgMTYwIDE5MiAxNjB2LTEyOGg1MTJ2MTI4bDE5Mi0xNjAtMTkyLTE2MHYxMjh6TTgzMiA4OTZ2LTI1NmwtNjQgMTI4aC0xOTJ2LTQ0OGgxMjh2LTY0aC0zODR2NjRoMTI4djQ0OGgtMTkybC02NC0xMjh2MjU2eiIgLz4NCjwvZm9udD48L2RlZnM+PC9zdmc+) format('svg');
+  font-weight: normal;
+  font-style: normal;
+}
+.react-viewer {
+  opacity: 0;
+}
+.react-viewer-inline {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 400px;
+}
+.react-viewer ul {
+  margin: 0;
+  padding: 0;
+}
+.react-viewer li {
+  list-style: none;
+}
+.react-viewer-mask {
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 0;
+  bottom: 0;
+  background-color: #373737;
+  background-color: rgba(55, 55, 55, 0.6);
+  height: 100%;
+  filter: alpha(opacity=50);
+  z-index: 1000;
+}
+.react-viewer-btn {
+  background-color: rgba(0, 0, 0, 0.5);
+  color: white;
+}
+.react-viewer-btn:hover {
+  background-color: rgba(0, 0, 0, 0.8);
+}
+.react-viewer-close {
+  position: fixed;
+  top: 0px;
+  right: 0px;
+  overflow: hidden;
+  width: 40px;
+  height: 40px;
+  border-radius: 0 0 0 40px;
+  cursor: pointer;
+  z-index: 1010;
+}
+.react-viewer-close > i {
+  position: relative;
+  top: 4px;
+  left: 18px;
+}
+.react-viewer-canvas {
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 0;
+  bottom: 0;
+  overflow: hidden;
+  z-index: 1005;
+}
+.react-viewer-canvas > img {
+  display: block;
+  width: auto;
+  height: auto;
+  -webkit-user-select: none;
+     -moz-user-select: none;
+      -ms-user-select: none;
+          user-select: none;
+}
+.react-viewer-canvas > img.drag {
+  cursor: move;
+}
+.react-viewer-footer {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  overflow: hidden;
+  text-align: center;
+  z-index: 1005;
+}
+.react-viewer-inline > .react-viewer-mask,
+.react-viewer-inline > .react-viewer-close,
+.react-viewer-inline > .react-viewer-canvas,
+.react-viewer-inline > .react-viewer-footer {
+  position: absolute;
+}
+.react-viewer-attribute {
+  margin: 0 20px;
+  margin-bottom: 6px;
+  opacity: 0.8;
+  color: #ccc;
+  font-size: 15px;
+}
+.react-viewer-showTotal {
+  float: right;
+}
+.react-viewer-toolbar {
+  overflow: hidden;
+  height: 28px;
+  margin-bottom: 6px !important;
+}
+.react-viewer-toolbar li {
+  display: inline-block;
+  width: 28px;
+  height: 28px;
+  border-radius: 28px;
+  margin-right: 3px;
+  cursor: pointer;
+  line-height: 28px;
+}
+.react-viewer-toolbar li:hover {
+  background-color: rgba(0, 0, 0, 0.8);
+}
+.react-viewer li.empty {
+  background-color: transparent;
+  cursor: default;
+}
+.react-viewer-navbar {
+  overflow: hidden;
+  background-color: rgba(0, 0, 0, 0.5);
+}
+.react-viewer-list {
+  height: 50px;
+  padding: 1px;
+  text-align: left;
+}
+.react-viewer-list > li {
+  display: inline-block;
+  width: 30px;
+  height: 50px;
+  cursor: pointer;
+  overflow: hidden;
+  margin-right: 1px;
+}
+.react-viewer-list > li > img {
+  width: 60px;
+  height: 50px;
+  margin-left: -15px;
+  opacity: 0.5;
+}
+.react-viewer-list > li.active > img {
+  opacity: 1;
+}
+.react-viewer-transition {
+  -webkit-transition: opacity 0.3s ease-out;
+  -o-transition: opacity 0.3s ease-out;
+  transition: opacity 0.3s ease-out;
+}
+.react-viewer-image-transition {
+  -webkit-transition-property: width, height, margin, -webkit-transform;
+  transition-property: width, height, margin, -webkit-transform;
+  -o-transition-property: width, height, margin, transform;
+  transition-property: width, height, margin, transform;
+  transition-property: width, height, margin, transform, -webkit-transform;
+  -webkit-transition-duration: 0.3s;
+       -o-transition-duration: 0.3s;
+          transition-duration: 0.3s;
+  -webkit-transition-timing-function: ease-out;
+       -o-transition-timing-function: ease-out;
+          transition-timing-function: ease-out;
+}
+.react-viewer-list-transition {
+  -webkit-transition: margin 0.3s ease-out;
+  -o-transition: margin 0.3s ease-out;
+  transition: margin 0.3s ease-out;
+}
+.react-viewer-icon {
+  font-family: 'icomoon' !important;
+  display: inline-block;
+  font-style: normal;
+  vertical-align: baseline;
+  text-align: center;
+  text-transform: none;
+  text-rendering: auto;
+  line-height: 1;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color: white;
+  font-size: 13px;
+}
+.react-viewer-icon-zoomIn:before {
+  content: '\ea0a';
+}
+.react-viewer-icon-zoomOut:before {
+  content: '\ea0b';
+}
+.react-viewer-icon-prev:before {
+  content: '\ea38';
+}
+.react-viewer-icon-next:before {
+  content: '\ea34';
+}
+.react-viewer-icon-close:before {
+  content: '\ea0f';
+}
+.react-viewer-icon-rotateLeft:before {
+  content: '\e967';
+}
+.react-viewer-icon-rotateRight:before {
+  content: '\e968';
+}
+.react-viewer-icon-reset:before {
+  content: '\e984';
+}
+.react-viewer-icon-scaleX:before {
+  content: '\ea60';
+}
+.react-viewer-icon-scaleY:before {
+  content: '\ea5f';
+}
+.react-viewer-icon-download:before {
+  content: '\e9c7';
+}
+.circle-loading {
+  -webkit-box-sizing: border-box;
+          box-sizing: border-box;
+  width: 80px;
+  height: 80px;
+  border-radius: 100%;
+  border: 10px solid rgba(255, 255, 255, 0.2);
+  border-top-color: #FFF;
+  -webkit-animation: spin 1s infinite linear;
+          animation: spin 1s infinite linear;
+}
+@-webkit-keyframes spin {
+  100% {
+    -webkit-transform: rotate(360deg);
+            transform: rotate(360deg);
+  }
+}
+@keyframes spin {
+  100% {
+    -webkit-transform: rotate(360deg);
+            transform: rotate(360deg);
+  }
+}
+</style>
+  <!-- clone runtime -->
+  <link rel="stylesheet" href="/assets/clone.css">
+  <link rel="stylesheet" href="/bp/connector.css">
+  <script defer src="/bp/connector.js"></script>
+  <script defer src="/assets/clone.js"></script>
+</head><body class="__className_04b26a"><div id="__next" class="app-layout page single-page"><div class="header-type"><div class="container"><h1 class="logo"><a title="LOTTE Mart" href="/"><span>LOTTE Mart</span></a></h1></div></div><main class="main"><div class="container"><div class="page-title"><h2>Chính Sách Quản Lý Tài Khoản Trực Tuyến </h2></div><div class="row justify-content-center"><div class="col-12 col-lg-8"><div class="static-content"><p class="MsoNormal" style="text-align: justify; line-height: 130%; background: white; margin: 3.0pt 0in 3.0pt 0in;"><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;">Bằng việc truy cập, đăng ký Tài khoản và sử dụng dịch vụ tại Website lottemart.vn (“<strong>Website</strong>”) và Ứng dụng LOTTE Mart (“<strong>Ứng Dụng</strong>”), Quý khách xác nhận đã đọc, hiểu và đồng ý thực hiện theo nội dung của Chính sách này.</span></p>
+<p class="MsoNormal" style="text-align: justify; line-height: 130%; background: white; margin: 3.0pt 0in 3.0pt 0in;"><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;">&nbsp;</span></p>
+<p class="MsoNormal" style="text-align: justify; line-height: 130%; background: white; margin: 3.0pt 0in 3.0pt 0in;"><strong><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;">Định nghĩa thuật ngữ</span></strong></p>
+<p class="MsoListParagraphCxSpFirst" style="mso-add-space: auto; text-align: justify; text-indent: -.25in; line-height: 130%; mso-list: l5 level1 lfo16; background: white; margin: 3.0pt 0in 3.0pt .5in;"><!-- [if !supportLists]--><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN; mso-bidi-font-weight: bold;"><span style="mso-list: Ignore;">1.</span></span><strong><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;">“Tài khoản LOTTE Mart”:</span></strong><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN; mso-bidi-font-weight: bold;"> Là tài khoản điện tử được người dùng đăng ký trên Website hoặc Ứng Dụng LOTTE Mart, dùng để xác lập và thực hiện giao dịch trực tuyến, quản lý đơn hàng, nhận ưu đãi và sử dụng các dịch vụ trực tuyến khác.</span></p>
+<p class="MsoListParagraphCxSpMiddle" style="mso-add-space: auto; text-align: justify; text-indent: -.25in; line-height: 130%; mso-list: l5 level1 lfo16; background: white; margin: 3.0pt 0in 3.0pt .5in;"><!-- [if !supportLists]--><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN; mso-bidi-font-weight: bold;"><span style="mso-list: Ignore;">2.</span></span><strong><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;">“Thẻ Thành Viên LOTTE Mart”:</span></strong><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN; mso-bidi-font-weight: bold;"> Là thẻ định danh dành cho khách hàng đã đăng ký chương trình thành viên, có thể dưới hình thức thẻ vật lý hoặc điện tử, được sử dụng để tích điểm, nhận ưu đãi, khuyến mại và hưởng các quyền lợi khác tại hệ thống LOTTE Mart.</span></p>
+<p class="MsoListParagraphCxSpMiddle" style="mso-add-space: auto; text-align: justify; text-indent: -.25in; line-height: 130%; mso-list: l5 level1 lfo16; background: white; margin: 3.0pt 0in 3.0pt .5in;"><!-- [if !supportLists]--><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN; mso-bidi-font-weight: bold;"><span style="mso-list: Ignore;">3.</span></span><strong><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;">“Tạm khóa Tài khoản”</span></strong><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN; mso-bidi-font-weight: bold;">: Là biện pháp ngăn chặn tạm thời trong thời gian LOTTE Mart xác minh hoặc ngăn chặn vi phạm tiếp diễn. Theo đó Khách hàng sẽ không thể đăng nhập Tài khoản và thực hiện giao dịch trực tuyến, tuy nhiên Tài khoản vẫn tồn tại trên hệ thống quản lý của LOTTE Mart và có thể được kích hoạt lại sau này khi thỏa mãn các điều kiện theo quy định.</span></p>
+<p class="MsoListParagraphCxSpMiddle" style="mso-add-space: auto; text-align: justify; text-indent: -.25in; line-height: 130%; mso-list: l5 level1 lfo16; background: white; margin: 3.0pt 0in 3.0pt .5in;"><!-- [if !supportLists]--><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN; mso-bidi-font-weight: bold;"><span style="mso-list: Ignore;">4.</span></span><strong><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;">“Vô hiệu hóa một phần tính năng”:</span></strong><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN; mso-bidi-font-weight: bold;"> Là hình thức hạn chế một số chức năng của Tài khoản trong khi vẫn giữ quyền đăng nhập Tài khoản, truy cập và sử dụng các chức năng khác.</span></p>
+<p class="MsoListParagraphCxSpLast" style="mso-add-space: auto; text-align: justify; text-indent: -.25in; line-height: 130%; mso-list: l5 level1 lfo16; background: white; margin: 3.0pt 0in 3.0pt .5in;"><!-- [if !supportLists]--><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN; mso-bidi-font-weight: bold;"><span style="mso-list: Ignore;">5.</span></span><strong><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;">“Xóa Tài khoản vĩnh viên”:</span></strong><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN; mso-bidi-font-weight: bold;"> Là biện pháp chấm dứt vĩnh viễn quyền sử dụng Tài khoản LOTTE Mart, bao gồm việc hủy toàn bộ dữ liệu liên quan. Khách hàng không còn quyền truy cập hay sử dụng bất kỳ dịch vụ trực tuyến nào gắn với Tài khoản đó. </span></p>
+<p class="MsoNormal" style="text-align: justify; line-height: 130%; background: white; margin: 3.0pt 0in 3.0pt 0in;"><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN; mso-bidi-font-weight: bold;">&nbsp;</span></p>
+<p class="MsoNormal" style="text-align: justify; line-height: 130%; background: white; margin: 3.0pt 0in 3.0pt 0in;"><strong><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;">Điều 1. Tạm khóa Tài Khoản hoặc vô hiệu hóa một phần tính năng </span></strong></p>
+<ol>
+<li class="MsoListParagraph" style="text-align: justify; text-indent: -0.25in; line-height: 130%; background: white;"><!-- [if !supportLists]--><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;"><span style="mso-list: Ignore;">&nbsp; &nbsp; &nbsp;</span></span><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;">Tài Khoản LOTTE Mart của Quý khách có thể bị khóa hoặc vô hiệu hóa một phần tính năng trong các trường hợp sau:</span></li>
+</ol>
+<p class="MsoNormal" style="text-align: justify; text-indent: -.25in; line-height: 130%; mso-list: l8 level1 lfo3; background: white; margin: 3.0pt 0in 3.0pt .75in;"><!-- [if !supportLists]--><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;"><span style="mso-list: Ignore;">a.</span></span><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;">Khi có quyết định hoặc yêu cầu bằng văn bản của cơ quan nhà nước có thẩm quyền theo quy định của pháp luật.</span></p>
+<p class="MsoNormal" style="text-align: justify; text-indent: -.25in; line-height: 130%; mso-list: l8 level1 lfo3; background: white; margin: 3.0pt 0in 3.0pt .75in;"><!-- [if !supportLists]--><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;"><span style="mso-list: Ignore;">b.</span></span><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;">Khi LOTTE Mart có căn cứ hợp lý nhận thấy Quý khách có các hành vi vi phạm chính sách bán hàng của LOTTE Mart hoặc quy định pháp luật như:</span></p>
+<ol>
+<li style="list-style-type: none;">
+<ol>
+<li style="list-style-type: none;">
+<ol style="list-style-type: lower-roman;">
+<li class="MsoNormal" style="text-align: justify; text-indent: -0.25in; line-height: 130%; background: white;"><!-- [if !supportLists]--><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;"><span style="mso-list: Ignore;">&nbsp; &nbsp; &nbsp;</span></span><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;">Có các hành vi không trung thực, lừa đảo;</span></li>
+<li class="MsoNormal" style="text-align: justify; text-indent: -0.25in; line-height: 130%; background: white;"><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;"><span style="mso-list: Ignore;">&nbsp; &nbsp; &nbsp; </span></span><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;">Tạo đơn hàng ảo hoặc đánh giá ảo;</span></li>
+<li class="MsoNormal" style="text-align: justify; text-indent: -0.25in; line-height: 130%; background: white;"><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;"><span style="mso-list: Ignore;">&nbsp; &nbsp; &nbsp;</span></span><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;">Có dấu hiệu lợi dụng hoặc lạm dụng các mã giảm giá, phí vận chuyển, hoặc các chương trình khuyến mại.</span></li>
+<li class="MsoNormal" style="text-align: justify; text-indent: -0.25in; line-height: 130%; background: white;"><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;"><span style="mso-list: Ignore;">&nbsp; &nbsp; &nbsp;</span></span><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;">Một cá nhân tạo nhiều Tài Khoản để hưởng lợi bất hợp pháp từ các chương trình khuyến mại hoặc ưu đãi.</span></li>
+<li class="MsoNormal" style="text-align: justify; text-indent: -0.25in; line-height: 130%; background: white;"><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;"><span style="mso-list: Ignore;">&nbsp; &nbsp; </span></span><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;">Các trường hợp khác được quy định cụ thể trong Chính sách bán hàng, Chính sách Thành viên, Chính sách này hoặc phù hợp với quy định pháp luật hiện hành mà LOTTE Mart phát hiện được.</span></li>
+</ol>
+</li>
+</ol>
+</li>
+</ol>
+<p class="MsoNormal" style="text-align: justify; text-indent: -.25in; line-height: 130%; mso-list: l8 level1 lfo3; background: white; margin: 3.0pt 0in 3.0pt .75in;"><!-- [if !supportLists]--><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;"><span style="mso-list: Ignore;">c.</span></span><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;">Khi LOTTE Mart nhận được thông báo xác thực từ ngân hàng, Khách hàng khác hoặc đối tác của LOTTE Mart về hành vi gian lận, tranh chấp hoặc vi phạm nghĩa vụ của Quý khách có liên quan đến Tài Khoản.</span></p>
+<ol style="margin-top: 0in;" start="2" type="1">
+<li class="MsoNormal" style="color: #141416; margin-top: 3.0pt; margin-bottom: 3.0pt; text-align: justify; line-height: 130%; mso-list: l3 level1 lfo1; tab-stops: list .5in; background: white;"><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; mso-fareast-language: ZH-CN;">Căn cứ vào tính chất, mức độ vi phạm, LOTTE Mart có thể áp dụng một hoặc nhiều biện pháp xử lý phù hợp, bao gồm:</span></li>
+</ol>
+<p class="MsoListParagraphCxSpFirst" style="mso-add-space: auto; text-align: justify; text-indent: -.25in; line-height: 130%; mso-list: l7 level1 lfo9; background: white; margin: 3.0pt 0in 3.0pt 56.7pt;"><!-- [if !supportLists]--><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;"><span style="mso-list: Ignore;">a.</span></span><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;">Cảnh báo và yêu cầu Quý khách điều chỉnh hành vi;</span></p>
+<p class="MsoListParagraphCxSpMiddle" style="mso-add-space: auto; text-align: justify; text-indent: -.25in; line-height: 130%; mso-list: l7 level1 lfo9; background: white; margin: 3.0pt 0in 3.0pt 56.7pt;"><!-- [if !supportLists]--><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;"><span style="mso-list: Ignore;">b.</span></span><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;">Hạn chế một phần tính năng;</span></p>
+<p class="MsoListParagraphCxSpMiddle" style="mso-add-space: auto; text-align: justify; text-indent: -.25in; line-height: 130%; mso-list: l7 level1 lfo9; background: white; margin: 3.0pt 0in 3.0pt 56.7pt;"><!-- [if !supportLists]--><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;"><span style="mso-list: Ignore;">c.</span></span><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;">Tạm khóa Tài khoản trong thời gian xác minh và khắc phục vi phạm; và/hoặc</span></p>
+<p class="MsoListParagraphCxSpLast" style="mso-add-space: auto; text-align: justify; text-indent: -.25in; line-height: 130%; mso-list: l7 level1 lfo9; background: white; margin: 3.0pt 0in 3.0pt 56.7pt;"><!-- [if !supportLists]--><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;"><span style="mso-list: Ignore;">d.</span></span><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;">Chấm dứt vĩnh viễn quyền sử dụng Tài khoản. </span></p>
+<ol style="margin-top: 0in;" start="3" type="1">
+<li class="MsoNormal" style="color: #141416; margin-top: 3.0pt; margin-bottom: 3.0pt; text-align: justify; line-height: 130%; mso-list: l3 level1 lfo1; tab-stops: list .5in; background: white;"><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; mso-fareast-language: ZH-CN;">Trước khi áp dụng các biện pháp nêu trên, LOTTE Mart sẽ thông báo đến Quý khách bằng phương thức điện tử (bao gồm một hoặc nhiều phương thức sau: thông báo trên ứng dụng, Email tự động hoặc SMS) ít nhất </span><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-bidi-font-family: 'Times New Roman';">ba 03 (ba) </span><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: black; mso-color-alt: windowtext; mso-bidi-font-weight: bold;">ngày trước khi thực hiện.</span></li>
+</ol>
+<p class="MsoNormal" style="text-align: justify; line-height: 130%; background: white; margin: 3.0pt 0in 3.0pt 0in;"><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;">&nbsp;</span></p>
+<p class="MsoNormal" style="text-align: justify; line-height: 130%; background: white; margin: 3.0pt 0in 3.0pt 0in;"><strong><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;">Điều 2. Khôi phục Tài khoản bị tạm khóa hoặc vô hiệu hóa một phần tính năng </span></strong></p>
+<p class="MsoListParagraph" style="mso-add-space: auto; text-align: justify; text-indent: -21.8pt; line-height: 130%; mso-list: l12 level1 lfo6; tab-stops: 14.2pt; background: white; margin: 3.0pt 0in 3.0pt .5in;"><!-- [if !supportLists]--><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;"><span style="mso-list: Ignore;">1.</span></span><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;">Việc tạm khóa Tài khoản hoặc vô hiệu hóa một phần tính năng sẽ được chấm dứt khi đáp ứng một trong các điều kiện sau:</span></p>
+<p class="MsoNormal" style="text-align: justify; text-indent: -21.25pt; line-height: 130%; mso-list: l10 level1 lfo5; background: white; margin: 3.0pt 0in 3.0pt 56.7pt;"><!-- [if !supportLists]--><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;"><span style="mso-list: Ignore;">a.</span></span><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;">Có văn bản/ thông báo từ cơ quan có thẩm quyền xác nhận các giao dịch được thực hiện trên Tài khoản là hợp pháp, hoặc có xác nhận về việc các tranh chấp liên quan đến Tài Khoản đã được giải quyết, hoặc có yêu cầu chấm dứt biện pháp phong tỏa Tài khoản;</span></p>
+<p class="MsoNormal" style="text-align: justify; text-indent: -21.25pt; line-height: 130%; mso-list: l10 level1 lfo5; background: white; margin: 3.0pt 0in 3.0pt 56.7pt;"><!-- [if !supportLists]--><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;"><span style="mso-list: Ignore;">b.</span></span><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;">Quý khách cung cấp đầy đủ giấy tờ, chứng từ hoặc thông tin liên quan (bao gồm nhưng không giới hạn như: hóa đơn, hình ảnh sản phẩm, v.v.) và sau khi tiến hành xác minh trên cơ sở hợp lý và khách quan, LOTTE Mart kết luận rằng các tài liệu đó loại trừ căn cứ để tiếp tục áp dụng biện pháp tạm khóa hoặc vô hiệu hóa;</span></p>
+<p class="MsoNormal" style="text-align: justify; text-indent: -21.25pt; line-height: 130%; mso-list: l10 level1 lfo5; background: white; margin: 3.0pt 0in 3.0pt 56.7pt;"><!-- [if !supportLists]--><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;"><span style="mso-list: Ignore;">c.</span></span><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;">Khi LOTTE Mart xét thấy việc tiếp tục tạm khóa là không còn cần thiết.</span></p>
+<p style="text-align: justify; text-indent: -.25in; line-height: 130%; mso-list: l12 level1 lfo6; margin: 3.0pt 0in 3.0pt .5in;"><!-- [if !supportLists]--><span style="color: #141416;"><span style="mso-list: Ignore;">2.</span></span><span style="color: #141416;">Quyết định về việc chấm dứt hoặc duy trì tình trạng tạm khóa Tài khoản sẽ được LOTTE Mart thông báo cho Quý khách bằng phương thức điện tử (ứng dụng, email hoặc SMS) trong vòng 07 (bảy) ngày kể từ ngày nhận đầy đủ tài liệu phù hợp và nêu rõ lý do.</span></p>
+<p style="text-indent: -.25in; line-height: 130%; mso-list: l12 level1 lfo6; margin: 3.0pt 0in 3.0pt .5in;"><!-- [if !supportLists]--><span style="color: #141416;"><span style="mso-list: Ignore;">3.</span></span><span style="color: #141416;">Trường hợp Tài khoản được khôi phục, Quý khách có toàn quyền tiếp tục sử dụng dịch vụ theo các điều kiện, chính sách hiện hành của LOTTE Mart.</span></p>
+<p style="text-indent: -.25in; line-height: 130%; mso-list: l12 level1 lfo6; margin: 3.0pt 0in 3.0pt .5in;">&nbsp;</p>
+<p class="MsoNormal" style="text-align: justify; line-height: 130%; background: white; margin: 3.0pt 0in 3.0pt 0in;"><strong><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;">Điều 3. Xóa Tài Khoản vĩnh viễn:</span></strong></p>
+<p class="MsoListParagraph" style="mso-add-space: auto; text-align: justify; text-indent: -.25in; line-height: 130%; mso-list: l14 level1 lfo7; background: white; margin: 3.0pt 0in 3.0pt .5in;"><!-- [if !supportLists]--><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;"><span style="mso-list: Ignore;">1.</span></span><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;">Tài Khoản của Quý khách có thể bị khóa hoặc xóa vĩnh viễn trong các trường hợp sau:</span></p>
+<p class="MsoNormal" style="text-align: justify; text-indent: -.25in; line-height: 130%; mso-list: l6 level1 lfo8; background: white; margin: 3.0pt 0in 3.0pt 56.7pt;"><!-- [if !supportLists]--><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;"><span style="mso-list: Ignore;">a.</span></span><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;">Quý khách chủ động yêu cầu và thực hiện&nbsp;khóa/xóa<strong>&nbsp;</strong>Tài Khoản LOTTE Mart trên Website/ Ứng Dụng của LOTTE Mart, với điều kiện Tài Khoản của Quý khách không còn đơn hàng nào đang trong trạng thái xử lý hoặc vận chuyển;</span></p>
+<p class="MsoNormal" style="text-align: justify; text-indent: -.25in; line-height: 130%; mso-list: l6 level1 lfo8; background: white; margin: 3.0pt 0in 3.0pt 56.7pt;"><!-- [if !supportLists]--><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;"><span style="mso-list: Ignore;">b.</span></span><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;">Có quyết định xử lý vi phạm từ cơ quan có thẩm quyền, buộc chấm dứt việc sử dụng Tài Khoản;</span></p>
+<p class="MsoNormal" style="text-align: justify; text-indent: -.25in; line-height: 130%; mso-list: l6 level1 lfo8; background: white; margin: 3.0pt 0in 3.0pt 56.7pt;"><!-- [if !supportLists]--><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;"><span style="mso-list: Ignore;">c.</span></span><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;">Có cơ sở hợp<span style="mso-spacerun: yes;">&nbsp; </span>lý cho thấy Quý khách thực hiện hành vi gian lận, lừa đảo, hoặc vi phạm pháp luật nghiêm trọng gây thiệt hại cho LOTTE Mart, đối tác hoặc khách hàng khác; hoặc tái phạm nhiều lần các hành vi đã bị cảnh báo hoặc tạm khóa trước đó;</span></p>
+<p class="MsoNormal" style="text-align: justify; text-indent: -.25in; line-height: 130%; mso-list: l6 level1 lfo8; background: white; margin: 3.0pt 0in 3.0pt 56.7pt;"><!-- [if !supportLists]--><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;"><span style="mso-list: Ignore;">d.</span></span><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;">Theo quyết định hoặc yêu cầu bằng văn bản của cơ quan nhà nước có thẩm quyền;</span></p>
+<p class="MsoNormal" style="text-align: justify; text-indent: -.25in; line-height: 130%; mso-list: l6 level1 lfo8; background: white; margin: 3.0pt 0in 3.0pt 56.7pt;"><!-- [if !supportLists]--><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman';"><span style="mso-list: Ignore;">e.</span></span><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;">Các trường hợp khác được quy định cụ thể trong pháp luật về giao dịch điện tử, thương mại và bảo vệ quyền lợi người tiêu dùng.</span></p>
+<ol style="margin-top: 0in;" start="2" type="1">
+<li class="MsoNormal" style="margin-top: 3.0pt; margin-bottom: 3.0pt; text-align: justify; line-height: 130%; mso-list: l0 level1 lfo2; tab-stops: list .5in; background: white;"><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: black; mso-color-alt: windowtext;">Sau khi Tài Khoản bị xóa vĩnh viễn, trong trường hợp có nhu cầu sử dụng lại dịch vụ, Quý khách cần thực hiện thủ tục đăng ký Tài Khoản mới theo hướng dẫn tại Website/Ứng dụng của LOTTE Mart. LOTTE Mart sẽ tiến hành xem xét cấp mới hoặc từ chối việc đăng ký mới đối với số điện thoại hoặc địa chỉ email đã từng gắn với Tài Khoản bị khóa hoặc xóa trước đó.</span></li>
+</ol>
+<p class="MsoNormal" style="text-align: justify; line-height: 130%; background: white; margin: 3.0pt 0in 3.0pt 0in;">&nbsp;</p>
+<p class="MsoNormal" style="text-align: justify; line-height: 130%; background: white; margin: 3.0pt 0in 3.0pt 0in;"><strong><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;">Điều 4. Hệ quả khi Tài khoản bị tạm khóa hoặc xóa vĩnh viễn</span></strong></p>
+<ol>
+<li class="MsoNormal" style="text-align: justify; line-height: 130%; background: white;"><!--[endif]--><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;">Quý khách không thể đăng nhập và sử dụng bất kỳ tính năng nào trên Website/ Ứng Dụng, bao gồm việc truy cập và tra cứu lịch sử giao dịch, thông tin đơn hàng, hoặc dữ liệu liên quan đến Tài Khoản.</span></li>
+<li class="MsoNormal" style="color: #141416; margin-top: 3.0pt; margin-bottom: 3.0pt; text-align: justify; line-height: 130%; mso-list: l2 level1 lfo11; background: white;"><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; mso-fareast-language: ZH-CN;">Toàn bộ các chương trình khuyến mại, ưu đãi, sự kiện và thông báo tiếp thị trực tuyến chỉ có tại Website/Ứng dụng LOTTE Mart sẽ không được cung cấp đến Quý khách.</span></li>
+<li class="MsoNormal" style="color: #141416; margin-top: 3.0pt; margin-bottom: 3.0pt; text-align: justify; line-height: 130%; mso-list: l2 level1 lfo11; background: white;"><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; mso-fareast-language: ZH-CN;">Toàn bộ các ưu đãi mà Quý khách đang có trong Tài Khoản nhưng chưa được sử dụng tại thời điểm khóa/xóa Tài Khoản (bao gồm các quà tặng hiện vật, mã giảm giá và các ưu đãi, quà tặng khác) sẽ không còn giá trị sử dụng. Đối với trường hợp tạm khóa, Quý khách có thể tiếp tục sử dụng các ưu đãi này ngay sau khi Tài khoản được khôi phục với điều kiện ưu đãi vẫn còn hiệu lực áp dụng;</span></li>
+<li class="MsoNormal" style="color: #141416; margin-top: 3.0pt; margin-bottom: 3.0pt; text-align: justify; line-height: 130%; mso-list: l2 level1 lfo11; background: white;"><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; mso-fareast-language: ZH-CN;">Bên cạnh việc tạm khóa hoặc xóa Tài Khoản vĩnh viễn, tùy theo tính chất và mức độ nghiêm trọng, quyền lợi của Khách hàng là Thành viên LOTTE Mart sẽ được xử lý theo một trong các biện pháp sau:</span></li>
+</ol>
+<p class="MsoListParagraphCxSpFirst" style="mso-add-space: auto; text-align: justify; text-indent: -.25in; line-height: 130%; mso-list: l9 level3 lfo15; background: white; margin: 3.0pt 0in 3.0pt .75in;"><!-- [if !supportLists]--><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;"><span style="mso-list: Ignore;">a.</span></span><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;">Chỉ tạm khóa hoặc vô hiệu hóa Tài Khoản trực tuyến của Khách hàng</span><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: black; mso-themecolor: text1; mso-fareast-language: ZH-CN;">. Trường hợp Tài Khoản bị khóa/ xóa của Quý khách đã được cấp Thẻ thành viên của LOTTE Mart (“<strong>Thẻ Thành Viên</strong>”) trước đó, </span><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;">Thẻ Thành viên và ưu đãi dành riêng dành cho Khách hàng Thành viên vẫn có hiệu lực và chỉ áp dụng đối với các </span><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: black; mso-themecolor: text1; mso-fareast-language: ZH-CN;">giao dịch, chương trình khuyến mại, ưu đãi, sự kiện</span><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;"> tại các địa điểm kinh doanh trực tiếp của LOTTE Mart; hoặc </span></p>
+<p class="MsoListParagraphCxSpLast" style="mso-add-space: auto; text-align: justify; text-indent: -.25in; line-height: 130%; mso-list: l9 level3 lfo15; background: white; margin: 3.0pt 0in 3.0pt .75in;"><!-- [if !supportLists]--><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;"><span style="mso-list: Ignore;">b.</span></span><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;">Áp dụng đồng thời việc tạm khóa hoặc xóa Tài Khoản trực tuyến, và chấm dứt tư cách Thành viên LOTTE Mart. </span></p>
+<ol style="margin-top: 0in;" start="5" type="1">
+<li class="MsoNormal" style="color: #141416; margin-top: 3.0pt; margin-bottom: 3.0pt; text-align: justify; line-height: 130%; mso-list: l2 level1 lfo11; background: white;"><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; mso-fareast-language: ZH-CN;">Các quyền lợi hợp pháp của Quý khách (như bảo hành sản phẩm, giải quyết khiếu nại, hoàn tiền còn lại nếu có,…) trong mọi trường hợp vẫn được bảo đảm theo quy định pháp luật và các chính sách bán hàng của LOTTE Mart.</span></li>
+<li class="MsoNormal" style="color: #141416; margin-top: 3.0pt; margin-bottom: 3.0pt; text-align: justify; line-height: 130%; mso-list: l2 level1 lfo11; background: white;"><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; mso-fareast-language: ZH-CN;">Việc khóa hoặc xóa Tài khoản không làm chấm dứt trách nhiệm pháp lý phát sinh trước đó của Quý khách đối với LOTTE Mart hoặc bên thứ ba liên quan. LOTTE Mart bảo lưu quyền yêu cầu Quý khách tiếp tục thực hiện nghĩa vụ, truy đòi các lợi ích, ưu đãi đã được hưởng trái với chính sách hoặc quy định pháp luật.</span></li>
+</ol>
+<p class="MsoNormal" style="text-align: justify; line-height: 130%; background: white; margin: 3.0pt 0in 3.0pt .25in;"><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;">&nbsp;</span></p>
+<p class="MsoNormal" style="text-align: justify; line-height: 130%; background: white; margin: 3.0pt 0in 3.0pt 0in;"><strong><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;">Điều 5. Quyền khiếu nại</span></strong></p>
+<p class="MsoListParagraph" style="mso-add-space: auto; text-align: justify; text-indent: -.25in; line-height: 130%; mso-list: l11 level1 lfo14; background: white; margin: 3.0pt 0in 3.0pt .5in;"><!-- [if !supportLists]--><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;"><span style="mso-list: Ignore;">1.</span></span><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;">Trong vòng 30 ngày kể từ gày nhận được thông báo về quyết định xử lý, Quý khách có quyền gửi khiếu nại, phản ánh hoặc yêu cầu giải quyết liên quan đến việc quản lý, khóa hoặc xóa Tài khoản thông qua các kênh hỗ trợ chính thức của LOTTE Mart sau:</span></p>
+<ul style="margin-top: 0in;" type="disc">
+<ul style="margin-top: 0in;" type="circle">
+<li class="MsoNormal" style="color: #141416; margin-top: 3.0pt; margin-bottom: 3.0pt; text-align: justify; line-height: 130%; mso-list: l15 level2 lfo13; tab-stops: list 1.0in; background: white;"><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; mso-fareast-language: ZH-CN;">Điện thoại: 0901.057.057;</span></li>
+<li class="MsoNormal" style="color: #141416; margin-top: 3.0pt; margin-bottom: 3.0pt; text-align: justify; line-height: 130%; mso-list: l15 level2 lfo13; tab-stops: list 1.0in; background: white;"><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; mso-fareast-language: ZH-CN;">Email: </span><span style="color: black; mso-color-alt: windowtext;"><a href="mailto:info@lotte.vn"><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; mso-fareast-language: ZH-CN;">info@lotte.vn</span></a></span><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; mso-fareast-language: ZH-CN;">;</span></li>
+<li class="MsoNormal" style="color: #141416; margin-top: 3.0pt; margin-bottom: 3.0pt; text-align: justify; line-height: 130%; mso-list: l15 level2 lfo13; tab-stops: list 1.0in; background: white;"><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; mso-fareast-language: ZH-CN;">Facebook: LOTTE Mart Vietnam;</span></li>
+<li class="MsoNormal" style="color: #141416; margin-top: 3.0pt; margin-bottom: 3.0pt; text-align: justify; line-height: 130%; mso-list: l15 level2 lfo13; tab-stops: list 1.0in; background: white;"><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; mso-fareast-language: ZH-CN;">Mục Yêu cầu hỗ trợ trên trang thông tin điện tử hoặc Ứng dụng mua hàng LOTTE Mart;</span></li>
+<li class="MsoNormal" style="color: #141416; margin-top: 3.0pt; margin-bottom: 3.0pt; text-align: justify; line-height: 130%; mso-list: l15 level2 lfo13; tab-stops: list 1.0in; background: white;"><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; mso-fareast-language: ZH-CN;">Quầy Dịch vụ Khách hàng các địa điểm kinh doanh của LOTTE Mart.</span></li>
+</ul>
+</ul>
+<p class="MsoListParagraphCxSpFirst" style="mso-add-space: auto; text-align: justify; text-indent: -.25in; line-height: 130%; mso-list: l4 level1 lfo4; background: white; margin: 3.0pt 0in 3.0pt .5in;"><!-- [if !supportLists]--><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;"><span style="mso-list: Ignore;">2.</span></span><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;">LOTTE Mart có trách nhiệm tiếp nhận, xem xét và phản hồi khiếu nại theo Quy trình tiếp nhận và xử lý khiếu nại hiện hành trong thời hạn hợp lý. </span></p>
+<p class="MsoListParagraphCxSpMiddle" style="mso-add-space: auto; text-align: justify; text-indent: -.25in; line-height: 130%; mso-list: l4 level1 lfo4; background: white; margin: 3.0pt 0in 3.0pt .5in;"><!-- [if !supportLists]--><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;"><span style="mso-list: Ignore;">3.</span></span><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;">Trường hợp khiếu nại, phản ánh không được giải quyết thỏa đáng, Quý khách có quyền khởi kiện hoặc yêu cầu cơ quan, tổ chức có thẩm quyền giải quyết theo quy định của pháp luật hiện hành.</span></p>
+<p class="MsoListParagraphCxSpLast" style="mso-add-space: auto; text-align: justify; line-height: 130%; background: white; margin: 3.0pt 0in 3.0pt .5in;"><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;">&nbsp;</span></p>
+<p class="MsoNormal" style="text-align: justify; line-height: 130%; background: white; margin: 3.0pt 0in 3.0pt 0in;"><strong><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: #141416; mso-fareast-language: ZH-CN;">Điều 6. Điều khoản khác</span></strong></p>
+<ol style="margin-top: 0in;" start="1" type="1">
+<li class="MsoNormal" style="color: #141416; margin-top: 3.0pt; margin-bottom: 3.0pt; text-align: justify; line-height: 130%; mso-list: l1 level1 lfo12; background: white;"><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; mso-fareast-language: ZH-CN;">Nhằm đảm bảo tuân thủ các nghĩa vụ pháp lý, phục vụ cho hoạt động giải quyết khiếu nại, tranh chấp phát sinh (nếu có), LOTTE Mart bảo lưu việc lưu giữ thông tin đơn hàng, giao dịch đã phát sinh và các thông tin khác của Quý khách sau khi Tài khoản bị khóa/xóa trong thời hạn hợp lý, trừ trường hợp pháp luật có quy định khác. </span></li>
+<li class="MsoNormal" style="color: #141416; margin-top: 3.0pt; margin-bottom: 3.0pt; text-align: justify; line-height: 130%; mso-list: l1 level1 lfo12; background: white;"><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; mso-fareast-language: ZH-CN;">LOTTE Mart bảo lưu quyền thay đổi, điều chỉnh bất kỳ phần nào trong Chính sách Quản lý Tài Khoản tùy </span><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-fareast-font-family: 'Times New Roman'; mso-bidi-font-family: 'Times New Roman'; color: black; mso-color-alt: windowtext;">từng thời điểm. Các thay đổi sẽ có hiệu lực sau 03 (ba) ngày kể từ thời điểm được thông báo công khai tới Khách hàng. Chính sách được đăng tải </span><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-bidi-font-family: 'Times New Roman'; color: black; mso-themecolor: text1; mso-fareast-language: VI;">tại </span><span style="color: black; mso-color-alt: windowtext;"><a href="/vi-nsg/faq"><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-bidi-font-family: 'Times New Roman';">/vi-nsg/faq</span></a></span><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-bidi-font-family: 'Times New Roman'; color: black; mso-themecolor: text1; mso-fareast-language: VI;"> và </span><span style="color: black; mso-color-alt: windowtext;"><a href="https://lottemart.com.vn/chinh-sach/"><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-bidi-font-family: 'Times New Roman';">https://lottemart.com.vn/chinh-sach/</span></a></span><span style="mso-bidi-font-size: 12.0pt; line-height: 130%; mso-bidi-font-family: 'Times New Roman'; color: black; mso-themecolor: text1; mso-fareast-language: VI;">, phần mềm ứng dụng LOTTE Mart và niêm yết tại Quầy Chăm sóc khách hàng của các địa điểm giao dịch.</span></li>
+</ol>
+<p><em><span style="font-size: 12.0pt; mso-bidi-font-size: 11.0pt; line-height: 107%; font-family: 'Times New Roman',serif; mso-fareast-font-family: Batang; mso-bidi-theme-font: minor-bidi; mso-font-kerning: 0pt; mso-ligatures: none; mso-ansi-language: EN-US; mso-fareast-language: EN-US; mso-bidi-language: AR-SA;">Chính sách về quản lý tài khoản trực tuyến (phiên bản 2) được cập nhật và đăng tải vào ngày 23/09/2025.</span></em></p></div></div></div></div></main><footer id="footer" class="footer bg-light"><div class="footer-content"><div class="container"><div class="row"><div class="col-12 col-md-6 col-lg-3 mb-3"><div class="d-none d-md-block"><h3 class="fontsize-18">Về LOTTE Mart</h3><ul class="list-unstyled fontsize-14 list-color-dark-gray"><li><a title="Giới Thiệu" href="/vi-nsg/about-us">Giới Thiệu</a></li><li><a title="Chính Sách Bảo Mật" href="/vi-nsg/privacy">Chính Sách Bảo Mật</a></li><li><a title="Điều kiện &amp; Điều khoản" href="/vi-nsg/membership-policy">Điều kiện &amp; Điều khoản</a></li></ul></div><div class="d-block d-md-none"><h3 class="fontsize-18">Liên kết trang web</h3><div class="dropdown dropdown-type row g-0 align-items-center"><button class="dropdown-toggle dropdown-toggle col text-start" data-bs-toggle="dropdown" type="button" aria-expanded="true">Về LOTTE Mart</button><div class="dropdown-menu w-100"><ul class="menu-content checked-type"><li><a title="Giới Thiệu" href="/vi-nsg/about-us">Giới Thiệu</a></li><li><a title="Chính Sách Bảo Mật" href="/vi-nsg/privacy">Chính Sách Bảo Mật</a></li><li><a title="Điều kiện &amp; Điều khoản" href="/vi-nsg/membership-policy">Điều kiện &amp; Điều khoản</a></li></ul></div></div></div></div><div class="col-12 col-md-6 col-lg-3 mb-4m"><div class="d-none d-md-block"><h3 class="fontsize-18">Chăm Sóc Khách Hàng</h3><ul class="list-unstyled fontsize-14 list-color-dark-gray"><li><a title="Câu Hỏi Thường Gặp" href="/vi-nsg/faq">Câu Hỏi Thường Gặp</a></li><li><a title="Quản Lý Tài Khoản" href="/vi-nsg/account-management">Quản Lý Tài Khoản</a></li><li><a title="Chính Sách Mua Hàng" href="/vi-nsg/shipping-delivery">Chính Sách Mua Hàng</a></li><li><a title="Đổi Trả Và Hoàn Tiền" href="/vi-nsg/exchange-refund">Đổi Trả Và Hoàn Tiền</a></li><li><a title="Chính Sách, Điều Kiện Giao Dịch" href="/vi-nsg/faq?tab=policy">Chính Sách, Điều Kiện Giao Dịch</a></li></ul></div><div class="d-block d-md-none"><div class="dropdown dropdown-type row g-0 align-items-center"><button class="dropdown-toggle dropdown-toggle col text-start" data-bs-toggle="dropdown" type="button" aria-expanded="true">Chăm Sóc Khách Hàng</button><div class="dropdown-menu w-100"><ul class="menu-content checked-type"><li><a title="Câu Hỏi Thường Gặp" href="/vi-nsg/faq">Câu Hỏi Thường Gặp</a></li><li><a title="Quản Lý Tài Khoản" href="/vi-nsg/account-management">Quản Lý Tài Khoản</a></li><li><a title="Chính Sách Mua Hàng" href="/vi-nsg/shipping-delivery">Chính Sách Mua Hàng</a></li><li><a title="Đổi Trả Và Hoàn Tiền" href="/vi-nsg/exchange-refund">Đổi Trả Và Hoàn Tiền</a></li><li><a title="Chính Sách, Điều Kiện Giao Dịch" href="/vi-nsg/faq?tab=policy">Chính Sách, Điều Kiện Giao Dịch</a></li></ul></div></div></div></div><div class="col-12 col-md-6 col-lg-3 mb-4m"><h3 class="fontsize-18">Phương Thức Thanh Toán</h3><div class="mb-3"><img class="mb-1 me-3s" src="/asset/images/icon-visa-3.svg" alt="Visa Image" width="48" height="48"><img class="mb-1 me-3s" src="/asset/images/icon-mastercard-3.svg" alt="Master Card Image" width="48" height="48"><img class="mb-1 me-3s" src="/asset/images/icon-jcb-3.svg" alt="Jcb Card Image" width="48" height="48"><br class="mob-h"><img class="mb-1 me-3s" src="/asset/images/icon-cash-f.svg" alt="Cash Image" width="48" height="48"><img class="mb-1 me-3s" src="/asset/images/zalopay-f.svg" alt="ZaloPay Image" width="48" height="48"><img class="mb-1 me-3s" src="/asset/images/icon-shopeepay.svg" alt="ShopeePay Image" width="38" height="38"><br class="mob-h"><img class="mb-1 me-3s" src="/asset/images/vnpay-f.svg" alt="VNPay Image" width="48" height="48"><img class="mb-1 me-3s" src="/asset/images/icon-momo-f.svg" alt="Momo Image" width="48" height="48"><img class="mb-1 me-3s" src="/asset/images/logo-cnf.svg" alt="CNF Logo" width="48" height="48"></div><h3 class="fontsize-18">Chứng Nhận Bởi</h3><p class="mb-1"><a href="http://online.gov.vn/Home/WebDetails/51612?AspxAutoDetectCookieSupport=1" target="_blank"><img src="/asset/images/img-bct-dathongbao.png" alt="Đã đăng ký Bộ Công Thương" width="128" height="48"></a></p></div><div class="col-12 col-md-6 col-lg-3 mb-4m"><h3 class="fontsize-18">Kết Nối Với Chúng Tôi</h3><div class="socials-link mb-3"><a href="https://www.facebook.com/LotteMartVN" target="_blank"><img alt="" aria-label="fb" loading="lazy" width="48" height="48" decoding="async" data-nimg="1" class="mb-2 me-3s" style="color:transparent" src="/asset/images/icon-facebook-3.svg"></a><a href="https://www.youtube.com/channel/UCNhksIAgeG6t_r2wviCwCfg" target="_blank"><img alt="" aria-label="yt" loading="lazy" width="48" height="48" decoding="async" data-nimg="1" class="mb-2 me-3s" style="color:transparent" src="/asset/images/icon-youtube-3.svg"></a><a href="https://www.tiktok.com/@lottemartonline" class="mb-2" target="_blank"><img alt="" aria-label="tt" loading="lazy" width="48" height="48" decoding="async" data-nimg="1" class="mb-2" style="color:transparent" src="/asset/images/icon-tiktok-3.svg"></a></div><h3 class="fontsize-18">Tải Ứng Dụng LOTTE Mart</h3><div class="row row-cols-auto row-cols-lg-1 gx-2"><div class="col mb-2"><a href="https://apps.apple.com/us/app/lotte-mart-vietnam/id6447617674" target="_blank" title="App Store"><img alt="App Store" aria-label="ap" loading="lazy" width="152" height="44" decoding="async" data-nimg="1" style="color:transparent" src="/asset/images/appstore.svg"></a></div><div class="col mb-0"><a href="https://play.google.com/store/apps/details?id=vn.ldcc.martonline" target="_blank" title="Google Play"><img alt="Google Play" aria-label="gg" loading="lazy" width="152" height="44" decoding="async" data-nimg="1" style="color:transparent" src="/asset/images/googleplay.svg"></a></div></div></div></div><div class="row"><div class="col"><h3 class="fontsize-18">CÔNG TY CỔ PHẦN TRUNG TÂM THƯƠNG MẠI LOTTE VIỆT NAM</h3><div class="fontsize-14"><p><strong>Trụ sở chính: </strong> 469 Nguyễn Hữu Thọ, Phường Tân Hưng, TP.Hồ Chí Minh, Việt Nam</p><p><strong>Giờ hoạt động: </strong> 8:00 - 21:00</p><p class="mb-3"><i class="icons icon-headphone me-1"></i> <strong class="me-3">0901 057 057</strong><i class="icons icon-mail me-2"></i> <a class="btn-link" href="mailto:info@lottemart.vn">info@lottemart.vn</a></p><p>Người đại diện theo pháp luật: SHIN JUBACK – Chức danh: Tổng giám đốc</p><p class="mb-4">Giấy chứng nhận Đăng ký kinh doanh số 0304741634 do Sở Kế hoạch và Đầu tư Thành phố Hồ Chí Minh cấp ngày 24/10/2006</p><hr class="mb-4"><p class="txt-grayer">© 2023 - Bản quyền của Công ty Cổ phần Trung Tâm Thương Mại LOTTE Việt Nam</p></div></div></div></div></div></footer><div class="Toastify"></div></div><div></div></body></html>
