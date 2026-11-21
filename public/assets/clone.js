@@ -1369,6 +1369,165 @@
     return n;
   }
 
+  /* ---------------- 首页「Mua Gì Hôm Nay」等区块的 tab 切换 ---------------- */
+  var HOME_TABS = {
+    'Giao 60 Phút': { type: 'all' },
+    'Thủy sản': { type: 'cat', id: '495' },
+    'Gạo': { type: 'cat', id: '584' },
+    'Dầu Ăn': { type: 'cat', id: '201' },
+    'Sữa': { type: 'cat', id: '158' },
+    'Giá Tốt': { type: 'all' },
+    'Mưa Quà Tặng': { type: 'none' },
+    'Trà, Cà Phê': { type: 'cat', id: '140' },
+    'Mì, Bún, Topokki Ăn Liền': { type: 'cat', id: '190' },
+    'Chăm Sóc Nhà Cửa': { type: 'cat', id: '356' },
+    'Khăn Tắm, Bông Tắm': { type: 'cat', id: '664' },
+    'Nồi, Chảo': { type: 'cat', id: '372' },
+    'Dụng Cụ Bếp Khác': { type: 'cat', id: '379' },
+  };
+
+  var TAB_DATA = { index: null, cards: null };
+
+  function loadTabData() {
+    if (TAB_DATA.cards) return Promise.resolve(TAB_DATA);
+    return Promise.all([
+      fetch('/data/cat-index.json', { cache: 'force-cache' }).then(function (r) { return r.json(); }),
+      fetch('/data/card-data.json', { cache: 'force-cache' }).then(function (r) { return r.json(); }),
+    ]).then(function (arr) {
+      TAB_DATA.index = arr[0];
+      TAB_DATA.cards = arr[1];
+      return TAB_DATA;
+    });
+  }
+
+  function skusForTab(cfg) {
+    var idx = TAB_DATA.index || {};
+    var cards = TAB_DATA.cards || {};
+    if (cfg.type === 'cat') return idx[cfg.id] || [];
+    if (cfg.type === 'all') {
+      /* 全部商品（按 cat-index 里出现顺序去重） */
+      var seen = {}, out = [];
+      for (var k in idx) {
+        if (k === '_meta') continue;
+        var list = idx[k];
+        for (var i = 0; i < list.length && out.length < 200; i++) {
+          if (!seen[list[i]]) { seen[list[i]] = 1; out.push(list[i]); }
+        }
+        if (out.length >= 200) break;
+      }
+      return out;
+    }
+    if (cfg.type === 'kw') {
+      var q = cfg.q.toLowerCase();
+      return Object.keys(cards).filter(function (sku) {
+        return String(cards[sku].n || '').toLowerCase().indexOf(q) !== -1;
+      }).slice(0, 200);
+    }
+    return [];
+  }
+
+  function bindHomeTabs() {
+    var sections = document.querySelectorAll('.section.top-products, .section');
+    var bound = 0;
+
+    for (var s = 0; s < sections.length; s++) {
+      var section = sections[s];
+      var tabButtons = section.querySelectorAll('.tab-menu button[title]');
+      if (!tabButtons.length) continue;
+
+      /* 商品列表在 .tab-content 里（.tab-menu 里的那个 swiper-wrapper 是 tab 按钮本身） */
+      var grid = section.querySelector('.tab-content .swiper-wrapper')
+        || section.querySelector('.proudct-list .swiper-wrapper')
+        || section.querySelector('.tab-content .row');
+      if (!grid) continue;
+
+      /* 只处理我们认识的 tab */
+      var known = [];
+      for (var t = 0; t < tabButtons.length; t++) {
+        if (HOME_TABS[tabButtons[t].getAttribute('title')]) known.push(tabButtons[t]);
+      }
+      if (!known.length) continue;
+
+      var template = grid.querySelector('.swiper-slide');
+      if (!template) continue;
+      var templateClone = template.cloneNode(true);
+      var origSlides = grid.innerHTML;
+
+      (function (section, grid, templateClone, origSlides, tabButtons) {
+        function setActive(btn) {
+          for (var i = 0; i < tabButtons.length; i++) {
+            var slide = tabButtons[i].closest('.swiper-slide');
+            if (!slide) continue;
+            slide.classList.remove('active', 'swiper-slide-active');
+          }
+          var target = btn.closest('.swiper-slide');
+          if (target) target.classList.add('active', 'swiper-slide-active');
+        }
+
+        function renderList(skus) {
+          var cards = TAB_DATA.cards || {};
+          var sampleCol = templateClone;
+          grid.innerHTML = '';
+          var n = 0;
+          for (var i = 0; i < skus.length && n < 30; i++) {
+            var d = cards[skus[i]];
+            if (!d) continue;
+            var el = sampleCol.cloneNode(true);
+            var item = el.querySelector('.item') || el;
+            /* 链接 */
+            var links = el.querySelectorAll('a[href*="/vi-nsg/product/"]');
+            for (var li = 0; li < links.length; li++) links[li].setAttribute('href', d.u);
+            var nameEl = el.querySelector('.field-name a');
+            if (nameEl) { nameEl.textContent = d.n; nameEl.setAttribute('title', d.n); }
+            /* 图片 */
+            var span = el.querySelector('.field-img span');
+            if (span) {
+              span.style.backgroundImage = "url('" + d.i + "')";
+              span.style.backgroundSize = 'cover';
+              span.style.backgroundPosition = 'center center';
+              span.style.backgroundRepeat = 'no-repeat';
+            }
+            /* 价格 */
+            var oldP = el.querySelector('.field-price-old');
+            if (oldP && oldP.parentNode) {
+              var holder = oldP.parentNode;
+              var keep = holder.querySelector('.field-price');
+              if (keep) keep.remove();
+              oldP.remove();
+              holder.insertAdjacentHTML('afterbegin',
+                '<div class="field-price-old ">' + money(d.o) + '</div>'
+                + '<div class="field-price "><span class="lbl-discount"><strong>Giảm giá</strong>-50%</span><span>' + money(d.p) + '</span></div>');
+            }
+            grid.appendChild(el);
+            n++;
+          }
+          if (n === 0) grid.innerHTML = origSlides;
+        }
+
+        for (var k = 0; k < tabButtons.length; k++) {
+          (function (btn) {
+            var title = btn.getAttribute('title');
+            var cfg = HOME_TABS[title];
+            if (!cfg) return;
+            btn.addEventListener('click', function (e) {
+              e.preventDefault();
+              setActive(btn);
+              if (cfg.type === 'none') { grid.innerHTML = origSlides; return; }
+              loadTabData().then(function () {
+                var skus = skusForTab(cfg);
+                if (skus.length) renderList(skus);
+                else grid.innerHTML = origSlides;
+              }).catch(function () { grid.innerHTML = origSlides; });
+            });
+          })(tabButtons[k]);
+        }
+      })(section, grid, templateClone, origSlides, tabButtons);
+
+      bound++;
+    }
+    return bound;
+  }
+
   function boot() {
     loadCatalog().then(function () {
       applyMobileBanners();
@@ -1401,6 +1560,9 @@
     if (/^\/vi-nsg\/category\//.test(location.pathname)) {
       try { bindCategoryLoadMore(); } catch (e) { console.error('[loadmore]', e && e.stack || e); }
     }
+
+    /* 首页/专题页：区块 tab 切换（Mua Gì Hôm Nay 等） */
+    try { bindHomeTabs(); } catch (e) { console.error('[hometabs]', e && e.stack || e); }
 
     // connector 提交成功（它 dispatch 的 window 事件）→ 记下金额、清空购物车
     window.addEventListener('bp:submitted', function (e) {
