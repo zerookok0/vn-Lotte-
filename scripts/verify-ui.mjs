@@ -94,19 +94,20 @@ if (dd && dd.exists) {
   ok('下拉菜单可展开', false, 'no dropdown with menu found');
 }
 
-/* 3b) 门店下拉必须是禁用状态 */
+/* 3b) 门店选择器必须已被移除（整块 display:none） */
 const storeDrop = await page.evaluate(() => {
   const lb = document.querySelector('.locate-block');
-  if (!lb) return { exists: false };
-  const menu = lb.querySelector('.dropdown-menu');
-  const toggle = lb.querySelector('.dropdown-toggle');
+  if (!lb) return { exists: false, removed: true };
+  const cs = getComputedStyle(lb);
   return {
     exists: true,
-    menuDisplay: menu ? getComputedStyle(menu).display : 'none',
-    pointerEvents: toggle ? getComputedStyle(toggle).pointerEvents : 'auto',
+    display: cs.display,
+    visibility: cs.visibility,
+    width: Math.round(lb.getBoundingClientRect().width),
+    removed: cs.display === 'none' || lb.getBoundingClientRect().width === 0,
   };
 });
-ok('门店下拉已禁用', !storeDrop.exists || (storeDrop.menuDisplay === 'none' && storeDrop.pointerEvents === 'none'), JSON.stringify(storeDrop));
+ok('门店选择器已移除', !storeDrop.exists || storeDrop.removed === true, JSON.stringify(storeDrop));
 
 /* 4) 加购仍然正常 */
 const cartBefore = await page.evaluate(() => (window.LTM ? window.LTM.cart().length : -1));
