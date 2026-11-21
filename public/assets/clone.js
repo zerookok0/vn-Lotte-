@@ -1070,6 +1070,88 @@
     }
   }, true);
 
+  /* ---------------- 首页促销弹窗（全场 5 折，倒计时到越南时间当天 24:00） ---------------- */
+  function vnRemainMs() {
+    // 越南 = UTC+7。Date.now() 本身就是 UTC 毫秒，直接 +7h 再按 UTC 读，
+    // 不要再加 getTimezoneOffset()（那是浏览器本地时区，会多算一次）。
+    var vnMs = Date.now() + 7 * 3600000;
+    var vn = new Date(vnMs);
+    var endOfDay = Date.UTC(vn.getUTCFullYear(), vn.getUTCMonth(), vn.getUTCDate(), 23, 59, 59, 999);
+    return Math.max(0, endOfDay - vnMs);
+  }
+
+  function fmtClock(ms) {
+    var total = Math.floor(ms / 1000);
+    var h = Math.floor(total / 3600);
+    var m = Math.floor((total % 3600) / 60);
+    var s = total % 60;
+    var pad = function (n) { return n < 10 ? '0' + n : String(n); };
+    return pad(h) + ':' + pad(m) + ':' + pad(s);
+  }
+
+  function bindPromoPopup() {
+    var KEY = 'ltm_promo_closed_until';
+    var now = Date.now();
+    var until = 0;
+    try { until = Number(localStorage.getItem(KEY) || 0); } catch (e) {}
+    if (until && now < until) return;   // 当天已手动关掉
+
+    var overlay = document.createElement('div');
+    overlay.className = 'promo-overlay';
+    overlay.id = 'promo-overlay';
+    overlay.innerHTML = ''
+      + '<div class="promo-box" role="dialog" aria-modal="true" aria-label="Ưu đãi 50%">'
+      + '  <button type="button" class="promo-close" aria-label="Đóng">×</button>'
+      + '  <picture>'
+      + '    <source media="(max-width: 640px)" srcset="/media/promo/50off-mobile.webp">'
+      + '    <img class="promo-img" src="/media/promo/50off-desktop.webp" alt="LOTTE Mart ưu đãi đặc biệt 50% OFF" width="1536" height="1024">'
+      + '  </picture>'
+      + '  <div class="promo-count">'
+      + '    <div class="promo-count-label">Chương trình kết thúc sau</div>'
+      + '    <div class="promo-time" id="promo-time">00:00:00</div>'
+      + '  </div>'
+      + '  <a class="promo-cta" href="/vi-nsg/tp5/sinh-nhat-lotte">Mua ngay →</a>'
+      + '</div>';
+
+    document.body.appendChild(overlay);
+    document.body.style.overflow = 'hidden';
+
+    var timeEl = document.getElementById('promo-time');
+    var tick = function () {
+      var left = vnRemainMs();
+      if (timeEl) timeEl.textContent = left > 0 ? fmtClock(left) : '00:00:00';
+      if (left <= 0) {
+        clearInterval(timer);
+        if (timeEl) timeEl.textContent = 'Đã kết thúc';
+      }
+    };
+    tick();
+    var timer = setInterval(tick, 1000);
+
+    function close() {
+      clearInterval(timer);
+      overlay.remove();
+      document.body.style.overflow = '';
+      // 记到越南时间当天结束，明天再弹
+      try {
+        var nowVn = Date.now() + 7 * 3600000;
+        var vn = new Date(nowVn);
+        var endUtc = Date.UTC(vn.getUTCFullYear(), vn.getUTCMonth(), vn.getUTCDate(), 23, 59, 59, 999);
+        var remain = Math.max(0, endUtc - nowVn);
+        localStorage.setItem(KEY, String(Date.now() + remain));
+      } catch (e) {}
+    }
+
+    var btn = overlay.querySelector('.promo-close');
+    if (btn) btn.addEventListener('click', close);
+    overlay.addEventListener('click', function (e) {
+      if (e.target === overlay) close();
+    });
+    document.addEventListener('keydown', function escClose(e) {
+      if (e.key === 'Escape') { close(); document.removeEventListener('keydown', escClose); }
+    });
+  }
+
   function boot() {
     loadCatalog().then(function () {
       applyMobileBanners();
@@ -1119,7 +1201,11 @@
     bindSwipers();
     bindDropdowns();
     bindMobileCarousels();
-    if (path === '/') bindWelcomePopup();
+    if (path === '/') {
+      bindWelcomePopup();
+      // 促销弹窗晚 800ms 出现，别抢首屏渲染
+      setTimeout(bindPromoPopup, 800);
+    }
     if (path === '/checkout') bindCheckout();
     if (path === '/search') renderSearchPage();
     if (path.indexOf('/vi-nsg/product/') === 0) {

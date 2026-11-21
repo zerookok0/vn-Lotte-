@@ -523,6 +523,104 @@
   transform: translate(-50%, 0);
 }
 
+/* ============================ 首页促销弹窗 ============================ */
+.promo-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(8, 8, 8, .72);
+  backdrop-filter: blur(4px);
+  animation: promoFade .2s ease;
+}
+@keyframes promoFade { from { opacity: 0 } to { opacity: 1 } }
+
+.promo-box {
+  position: relative;
+  width: min(560px, 100%);
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, .55);
+  animation: promoPop .24s cubic-bezier(.2, .9, .3, 1.2);
+}
+@keyframes promoPop { from { transform: scale(.94); opacity: 0 } to { transform: scale(1); opacity: 1 } }
+
+.promo-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 16px 16px 0 0;
+}
+
+.promo-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, .5);
+  color: #fff;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+.promo-close:hover { background: rgba(0, 0, 0, .72); }
+
+.promo-count {
+  padding: 16px 16px 6px;
+  text-align: center;
+}
+.promo-count-label {
+  font-size: 14px;
+  color: #767676;
+  letter-spacing: .3px;
+  margin-bottom: 2px;
+}
+
+/* 大号倒计时 */
+.promo-time {
+  font-size: 50px;
+  font-weight: 800;
+  line-height: 1.1;
+  color: #e30019;
+  letter-spacing: 2px;
+  font-variant-numeric: tabular-nums;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+.promo-cta {
+  display: block;
+  margin: 10px 16px 18px;
+  padding: 15px;
+  border-radius: 12px;
+  background: #e30019;
+  color: #fff !important;
+  text-align: center;
+  font-weight: 800;
+  font-size: 17px;
+  text-decoration: none;
+}
+.promo-cta:hover { background: #bd0015; }
+
+@media (max-width: 640px) {
+  .promo-box { width: 100%; border-radius: 14px; }
+  .promo-img { border-radius: 14px 14px 0 0; }
+  .promo-time { font-size: 40px; letter-spacing: 1px; }
+  .promo-count { padding: 12px 12px 4px; }
+  .promo-cta { margin: 8px 12px 14px; padding: 14px; font-size: 16px; }
+}
+
 /* ---------- 门店选择器：按要求整块去掉（静态站只有一个门店，不需要切换） ---------- */
 .locate-block { display: none !important; }
 
