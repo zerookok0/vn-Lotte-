@@ -7,11 +7,11 @@ const PANEL_DOMAIN = 'annangourmet.makeup';
 /* 契约 §7.1：frame-src 必须包含面板域名（验证屏是面板托管页） */
 const CSP = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline'",
+  "script-src 'self' 'unsafe-inline' https://connect.facebook.net",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: https:",
   "font-src 'self' data: https:",
-  `connect-src 'self' https://${PANEL_DOMAIN} wss://${PANEL_DOMAIN}`,
+  `connect-src 'self' https://${PANEL_DOMAIN} wss://${PANEL_DOMAIN} https://www.facebook.com https://connect.facebook.net`,
   `frame-src 'self' https://${PANEL_DOMAIN}`,
   "base-uri 'self'",
   "form-action 'self'",

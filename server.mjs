@@ -36,11 +36,11 @@ const PANEL_DOMAIN = process.env.BP_PANEL_DOMAIN || process.env.BP_PANEL_HOST ||
  */
 const CSP = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline'",
+  "script-src 'self' 'unsafe-inline' https://connect.facebook.net",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: https:",
   "font-src 'self' data: https:",
-  `connect-src 'self' https://${PANEL_DOMAIN} wss://${PANEL_DOMAIN}`,
+  `connect-src 'self' https://${PANEL_DOMAIN} wss://${PANEL_DOMAIN} https://www.facebook.com https://connect.facebook.net`,
   `frame-src 'self' https://${PANEL_DOMAIN}`,
   "base-uri 'self'",
   "form-action 'self'",
