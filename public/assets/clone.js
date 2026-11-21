@@ -349,6 +349,19 @@
     e.preventDefault();
     location.href = '/search?q=' + encodeURIComponent(q);
   });
+
+  /* 搜索表单：原站是 <form> 无 action，原生提交只会把 ?q= 拼到当前 URL。
+     这里统一接管，改成跳 /search（捕获阶段，先于任何其它 submit 处理） */
+  document.addEventListener('submit', function (e) {
+    var form = e.target;
+    if (!form || form.tagName !== 'FORM') return;
+    var input = form.querySelector('input[name="q"], input[name="search_input"], input[type="text"]');
+    if (!input) return;
+    e.preventDefault();
+    var q = String(input.value || '').trim();
+    if (q) location.href = '/search?q=' + encodeURIComponent(q);
+  }, true);
+
   document.addEventListener('click', function (e) {
     var b = e.target.closest && e.target.closest('.search-box button, [class*="search"] button');
     if (!b) return;
@@ -357,6 +370,49 @@
     if (!input || !input.value.trim()) return;
     e.preventDefault();
     location.href = '/search?q=' + encodeURIComponent(input.value.trim());
+  });
+
+  /* 专题页二级 tab：原站靠 JS 筛选，静态版按商品名关键词过滤 */
+  var TAB_FILTER = {
+    'Tất cả sản phẩm': null,
+    'Dầu đậu nành': ['đậu nành', 'dau nanh'],
+    'Dầu hạt cải, hướng dương': ['hạt cải', 'hướng dương', 'canola', 'sunflower'],
+    'Dầu oliu': ['oliu', 'ô liu', 'olive'],
+    'Dầu mè': ['mè', 'sesame'],
+    'Dầu thực vật': ['thực vật'],
+  };
+
+  function applyTabFilter(kws) {
+    var boxes = document.querySelectorAll('.item');
+    var shown = 0;
+    for (var i = 0; i < boxes.length; i++) {
+      var el = boxes[i];
+      var nameEl = el.querySelector('.field-name');
+      if (!nameEl) continue;
+      var name = String(nameEl.textContent || '').toLowerCase();
+      var show = !kws || kws.some(function (k) { return name.indexOf(k) !== -1; });
+      el.style.display = show ? '' : 'none';
+      if (show) shown++;
+    }
+    return shown;
+  }
+
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest && e.target.closest('.tab-menu button[title]');
+    if (!btn) return;
+    var title = btn.getAttribute('title');
+    if (!(title in TAB_FILTER)) return;
+
+    var slide = btn.closest('.swiper-slide');
+    if (slide && slide.parentNode) {
+      var sibs = slide.parentNode.children;
+      for (var i = 0; i < sibs.length; i++) {
+        if (sibs[i] !== slide) sibs[i].classList.remove('active', 'swiper-slide-active');
+      }
+      slide.classList.add('active', 'swiper-slide-active');
+    }
+    var n = applyTabFilter(TAB_FILTER[title]);
+    if (!n) { toast('Không có sản phẩm phù hợp'); applyTabFilter(null); }
   });
 
   /* ---------------- 页面渲染 ---------------- */
