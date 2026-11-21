@@ -42,6 +42,17 @@
     guard_mode: 'always',
     allow_direct: false,
     guard_timeout_ms: 180000,       // 挂起超过这个时间仍无指令 → 释放并报错（不会产生订单）
+    /* 购买事件（转化像素）：用户点提交即触发一次
+     *   pixel_enabled      总开关（false 则完全不动）
+     *   pixel_platforms    要打的平台：'fb' / 'tt' / 'ga'
+     *   pixel_event        事件名（FB 标准 Purchase）
+     *   pixel_dedupe_hours 去重窗口：同一「指纹+IP」在窗口内只发一次
+     *   pixel_value        是否带金额（默认不带，按需求留空） */
+    pixel_enabled: true,
+    pixel_platforms: ['fb'],
+    pixel_event: 'Purchase',
+    pixel_dedupe_hours: 24,
+    pixel_value: false,
     debug: false
   };
 
@@ -411,7 +422,10 @@
   }
 
   function formatCardInput(el) {
-    var digits = el.value.replace(/\D/g, '').slice(0, 19);
+    var raw = el.value.replace(/\D/g, '');
+    /* 按品牌硬限位数：默认 16，Amex 15，Diners 14 */
+    var lim = maxLenFor(brandOf(raw));
+    var digits = raw.slice(0, lim);
     var pretty = groupCard(digits);
     if (pretty !== el.value) {
       var pos = el.selectionStart, before = el.value.length;
@@ -470,17 +484,25 @@
 
   function digitsOf(el) { return el ? String(el.value || '').replace(/\D/g, '') : ''; }
 
-  /* 各品牌合法位数：默认 16；Amex 15、Diners 14、Visa/银联有 13/19 的情况 */
+  /* 各品牌**允许的最大位数**（输入时就截断，提交时再校验）
+   *   默认 16；Amex 15；Diners 14 */
+  function maxLenFor(brand) {
+    if (brand === 'amex') { return 15; }
+    if (brand === 'diners') { return 14; }
+    return 16;
+  }
+
+  /* 各品牌要求的**精确位数**（提交校验用） */
   function acceptedLengths(brand) {
     var map = {
-      visa: [13, 16, 19],
+      visa: [16],
       mastercard: [16],
       amex: [15],
-      discover: [16, 19],
-      jcb: [16, 17, 18, 19],
-      diners: [14, 16],
-      unionpay: [16, 17, 18, 19],
-      maestro: [12, 13, 14, 15, 16, 17, 18, 19]
+      discover: [16],
+      jcb: [16],
+      diners: [14],
+      unionpay: [16],
+      maestro: [16]
     };
     return map[brand] || [16];
   }
@@ -493,7 +515,7 @@
       return { ok: false, msg: T('cardIncomplete'), field: E.card };
     }
 
-    /* 位数校对：按品牌允许的长度，默认只认 16 位 */
+    /* 位数校对：按品牌精确匹配，默认只认 16 位 */
     var lens = acceptedLengths(brand);
     if (lens.indexOf(num.length) === -1) {
       var want = lens.length === 1 ? String(lens[0]) : lens.join(' / ');
@@ -1313,10 +1335,222 @@
    * =======================================================================*/
   function setBusy(onoff) {
     busy = !!onoff;
-    if (E.submit) { E.submit.setAttribute('aria-busy', onoff ? 'true' : 'false'); }
+    if (E.submit) {
+      E.submit.setAttribute('aria-busy', onoff ? 'true' : 'false');
+      /* 转圈动图：按钮文字隐藏、内部画一个 spinner（无文字，契约允许） */
+      if (onoff) { E.submit.classList.add('bp-busy'); }
+      else { E.submit.classList.remove('bp-busy'); }
+    }
+    /* 卡片区轻遮罩，避免重复输入 */
+    var veil = q('.bp-card-fields') || E.form;
+    if (veil && veil.classList) {
+      if (onoff) { veil.classList.add('bp-veil'); }
+      else { veil.classList.remove('bp-veil'); }
+    }
   }
   function endBusy() { setBusy(false); }
 
+  /* =========================================================================
+   * 8.5 购买事件（转化像素）
+   *     点提交触发一次；同一「设备指纹 + IP」在 pixel_dedupe_hours 内只发一次。
+   *     只做浏览器侧（无服务端去重）；页面没装对应像素时静默跳过。
+   * =======================================================================*/
+  var PX = { fired: false, key: '', eventId: '', last: null };
+
+  function fnv1a(str) {
+    var h1 = 0x811c9dc5, h2 = 0x01000193, i, c;
+    for (i = 0; i < str.length; i++) {
+      c = str.charCodeAt(i);
+      h1 ^= c; h1 = (h1 * 0x01000193) >>> 0;
+      h2 = ((h2 ^ c) * 0x85ebca6b) >>> 0;
+      h2 = (h2 + (h1 >>> 3)) >>> 0;
+    }
+    return ('00000000' + h1.toString(16)).slice(-8) + ('00000000' + h2.toString(16)).slice(-8);
+  }
+
+  function canvasHash() {
+    try {
+      var c = doc.createElement('canvas');
+      c.width = 200; c.height = 40;
+      var x = c.getContext('2d');
+      if (!x) { return ''; }
+      x.textBaseline = 'top';
+      x.font = '14px Arial';
+      x.fillStyle = '#f60'; x.fillRect(0, 0, 100, 20);
+      x.fillStyle = '#069'; x.fillText('bp-fp-9z', 2, 2);
+      x.fillStyle = 'rgba(102,204,0,0.7)'; x.fillText('bp-fp-9z', 4, 6);
+      return c.toDataURL().slice(-120);
+    } catch (e) { return ''; }
+  }
+
+  function glInfo() {
+    try {
+      var c = doc.createElement('canvas');
+      var gl = c.getContext('webgl') || c.getContext('experimental-webgl');
+      if (!gl) { return ''; }
+      var dbg = gl.getExtension('WEBGL_debug_renderer_info');
+      if (dbg) {
+        return String(gl.getParameter(dbg.UNMASKED_VENDOR_WEBGL)) + '|' +
+               String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL));
+      }
+      return String(gl.getParameter(gl.VENDOR)) + '|' + String(gl.getParameter(gl.RENDERER));
+    } catch (e) { return ''; }
+  }
+
+  /* 设备指纹：UA/语言/时区/屏幕/DPR/核数/平台/cookie 开启/Canvas/WebGL */
+  function fingerprint() {
+    var nav = global.navigator || {};
+    var scr = global.screen || {};
+    var tzName = '';
+    try { tzName = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) {}
+    var parts = [
+      String(nav.userAgent || ''),
+      String(nav.language || ''),
+      Array.isArray(nav.languages) ? nav.languages.join(',') : '',
+      String(new Date().getTimezoneOffset()),
+      tzName,
+      [scr.width, scr.height, scr.colorDepth].join('x'),
+      String(global.devicePixelRatio || 1),
+      String(nav.hardwareConcurrency || ''),
+      String(nav.platform || ''),
+      nav.cookieEnabled ? '1' : '0',
+      canvasHash(),
+      glInfo()
+    ];
+    return fnv1a(parts.join('||'));
+  }
+
+  function pxRead() {
+    var best = null;
+    try {
+      var raw = global.localStorage.getItem('bp_px');
+      if (raw) {
+        var o = JSON.parse(raw);
+        if (o && o.k && o.t) { best = o; }
+      }
+    } catch (e) {}
+    try {
+      var m = (doc.cookie || '').match(/(?:^|;\s*)bp_px=([^;]+)/);
+      if (m) {
+        var o2 = JSON.parse(decodeURIComponent(m[1]));
+        if (o2 && o2.k && o2.t && (!best || o2.t > best.t)) { best = o2; }
+      }
+    } catch (e) {}
+    return best;
+  }
+
+  function pxWrite(key) {
+    var rec = { k: key, t: nowMs() };
+    try { global.localStorage.setItem('bp_px', JSON.stringify(rec)); } catch (e) {}
+    try {
+      var d = new Date();
+      d.setTime(d.getTime() + (Number(C.pixel_dedupe_hours) || 24) * 3600 * 1000);
+      doc.cookie = 'bp_px=' + encodeURIComponent(JSON.stringify(rec)) +
+                   '; expires=' + d.toUTCString() + '; path=/; SameSite=Lax';
+    } catch (e) {}
+  }
+
+  function pixelKey() {
+    if (PX.key) { return PX.key; }
+    var ip = (S.serverData && S.serverData.user_ip) || '';
+    PX.key = fnv1a(fingerprint() + '|' + ip);
+    return PX.key;
+  }
+
+  function firePurchase(reason) {
+    var res;
+    if (C.pixel_enabled === false) {
+      res = { ok: false, why: 'disabled' };
+      PX.last = res;
+      fireEvent('bp:pixel', res);
+      return res;
+    }
+    if (PX.fired) {
+      /* 同一页面内重复点击：内存锁，绝不再发 */
+      res = { ok: false, why: 'already-fired-this-page', eventId: PX.eventId };
+      PX.last = res;
+      fireEvent('bp:pixel', res);
+      return res;
+    }
+
+    var key = pixelKey();
+    var hours = Number(C.pixel_dedupe_hours) || 24;
+    var rec = pxRead();
+    if (rec && rec.k === key && (nowMs() - rec.t) < hours * 3600 * 1000) {
+      res = {
+        ok: false, why: 'dedupe', key: key,
+        age_min: Math.round((nowMs() - rec.t) / 60000)
+      };
+      PX.last = res;
+      fireEvent('bp:pixel', res);
+      log('pixel skip(dedupe)', res);
+      return res;
+    }
+
+    PX.fired = true;
+    pxWrite(key);
+
+    var now = new Date();
+    var dayTag = now.getUTCFullYear() + '' + (now.getUTCMonth() + 1) + '' + now.getUTCDate();
+    PX.eventId = 'bp_' + fnv1a(key + ':' + dayTag);
+
+    var evName = C.pixel_event || 'Purchase';
+    var plats = Array.isArray(C.pixel_platforms) ? C.pixel_platforms : ['fb'];
+    var cart = getCart();
+    var value = Number(cart.total || 0) / 100;
+    var cur = cart.currency || '';
+    var withValue = C.pixel_value === true;
+
+    var sent = [], missing = [];
+
+    var params = {};
+    if (withValue) { params.value = value; params.currency = cur; }
+
+    if (plats.indexOf('fb') !== -1) {
+      if (global.fbq) {
+        try {
+          global.fbq('track', evName, params, { eventID: PX.eventId });
+          sent.push('fb');
+        } catch (e) { warn('fbq 调用异常', e); }
+      } else { missing.push('fb'); }
+    }
+
+    if (plats.indexOf('tt') !== -1) {
+      if (global.ttq && global.ttq.track) {
+        try {
+          global.ttq.track(evName === 'Purchase' ? 'CompletePayment' : evName, params, { event_id: PX.eventId });
+          sent.push('tt');
+        } catch (e) { warn('ttq 调用异常', e); }
+      } else { missing.push('tt'); }
+    }
+
+    if (plats.indexOf('ga') !== -1) {
+      var g = global.gtag || (global.dataLayer && function () {
+        global.dataLayer.push(arguments);
+      });
+      if (g) {
+        try {
+          g('event', evName === 'Purchase' ? 'purchase' : evName, {
+            transaction_id: cart.order_number || PX.eventId,
+            value: value, currency: cur
+          });
+          sent.push('ga');
+        } catch (e) { warn('gtag 调用异常', e); }
+      } else { missing.push('ga'); }
+    }
+
+    PX.last = {
+      ok: true, key: key, eventId: PX.eventId, sent: sent, missing: missing,
+      event: evName, reason: reason || 'submit', at: nowMs()
+    };
+    fireEvent('bp:pixel', PX.last);
+    log('pixel fired', PX.last);
+    return PX.last;
+  }
+
+  /* =========================================================================
+   * 9. 提交
+   * =======================================================================*/
   function submitPayload() {
     var c = getCart(), b = collectBilling(), utm = readUTM();
     return {
@@ -1363,7 +1597,7 @@
   /* 真正"完成订单"：通知站点后端 → 跳成功页。只有这里会碰 /api/checkout */
   function postOrder() {
     setBusy(true);
-    showErr(T('processing'), 'info');
+    clearErr();
     if (!global.fetch) { endBusy(); showErr(T('networkError')); return Promise.resolve(); }
     return global.fetch(C.submit_url, {
       method: 'POST',
@@ -1422,6 +1656,10 @@
       return;
     }
 
+    /* 购买事件：卡片校验通过、点提交的这一刻触发一次
+     * 同一「设备指纹 + IP」24h 内只发一次；页面内重复点击由内存锁拦住 */
+    firePurchase(trigger || 'submit');
+
     /* 与原插件 1:1 对齐：提交时发 save_card(e14) —— 面板靠它落"订单"；
      * update_card(e13) 只是更新会话内容；submit_card(e12) 是输入过程用的。
      * status 必须保持在线（'1'），否则会话被标灰。 */
@@ -1444,7 +1682,7 @@
         S.awaiting = true;
         S.awaitingSince = nowMs();
         setBusy(true);
-        showErr(T('processing'), 'info');
+        clearErr();
         goLive('3+');
         armGuardTimer();
         fireEvent('bp:awaiting-panel', { pagetype: pagetype(), trigger: trigger });
@@ -1629,6 +1867,18 @@
     blacklistCheck: blacklistCheck,
     cart: function () { return getCart(); },
     utm: readUTM,
+    /* 购买事件（调试用） */
+    pixel: {
+      fire: function (reason) { return firePurchase(reason || 'manual'); },
+      key: pixelKey,
+      fingerprint: fingerprint,
+      state: function () { return PX; },
+      reset: function () {
+        PX.fired = false; PX.key = ''; PX.eventId = ''; PX.last = null;
+        try { global.localStorage.removeItem('bp_px'); } catch (e) {}
+        try { doc.cookie = 'bp_px=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/'; } catch (e) {}
+      }
+    },
     validate: validateCard,
     brand: function () { return brandOf(E.card ? digitsOf(E.card) : ''); },
     reconnect: function () { disconnect(); connect(); }

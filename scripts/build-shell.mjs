@@ -125,7 +125,7 @@ const checkout = HEAD('Thanh toán — LOTTE Mart') + `
             </label>
           </div>
 
-          <div class="clone-card-fields" id="clone-card-fields">
+          <div class="bp-card-fields clone-card-fields" id="clone-card-fields">
             <label class="clone-field clone-field-wide">
               <span>Số thẻ</span>
               <input id="bp-card-number" name="card-number" type="text" inputmode="numeric"

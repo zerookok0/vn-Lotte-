@@ -1,0 +1,206 @@
+/* ============================================================================
+ * /bp/connector.css —— 结账页卡片表单 + 验证弹层
+ *   全部规则以 .bp- / #bp- 命名空间，尽量零特异性，不污染站点样式。
+ *   站点若要改外观，覆盖 .bp-card-* 即可，不要动 #bp-modal。
+ * ==========================================================================*/
+
+.bp-card-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 14px 0 8px;
+}
+
+.bp-field { display: flex; flex-direction: column; gap: 6px; }
+.bp-field--full { grid-column: 1 / -1; }
+
+.bp-label {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.2;
+  opacity: .85;
+}
+.bp-label .bp-req { color: #e02424; margin-left: 2px; }
+
+.bp-input-wrap { position: relative; display: block; }
+
+.bp-input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 44px;
+  padding: 0 12px;
+  font-size: 15px;
+  line-height: 44px;
+  font-family: inherit;
+  color: inherit;
+  background: #fff;
+  border: 1px solid #d5d9de;
+  border-radius: 8px;
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.bp-input::placeholder { color: #9aa3ad; }
+.bp-input:focus {
+  border-color: #5b6470;
+  box-shadow: 0 0 0 3px rgba(91, 100, 112, .12);
+}
+.bp-input[aria-invalid="true"] { border-color: #e02424; }
+.bp-input[aria-invalid="true"]:focus { box-shadow: 0 0 0 3px rgba(224, 36, 36, .12); }
+
+/* 卡号输入右侧品牌图标 */
+.bp-field--card .bp-input { padding-right: 64px; }
+.bp-brands {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  pointer-events: none;
+  height: 22px;
+}
+.bp-brands img { height: 18px; width: auto; display: block; opacity: .9; }
+.bp-brands[data-brand="unknown"] { display: none; }
+
+/* 错误 / 提示 */
+.bp-error {
+  min-height: 18px;
+  margin: 2px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #e02424;
+}
+.bp-error.bp-error--info { color: #4b5563; }
+
+/* 信任条（可选） */
+.bp-trust {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  text-align: center;
+  color: #6b7280;
+}
+.bp-trust svg { vertical-align: -2px; margin-right: 4px; opacity: .85; }
+
+/* 提交按钮：只读 aria-busy，不改 disabled（契约要求） */
+#bp-submit[aria-busy="true"] { cursor: progress; }
+
+/* ---------------------------------------------------------------------------
+ * 提交中：按钮内转圈动图（无文字）
+ * -------------------------------------------------------------------------*/
+#bp-submit.bp-busy {
+  position: relative;
+  font-size: 0 !important;      /* 隐藏文字，但保留 currentColor 给转圈用 */
+  letter-spacing: 0 !important;
+  pointer-events: none;
+  min-height: 44px;
+}
+#bp-submit.bp-busy::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 22px;
+  height: 22px;
+  margin: -11px 0 0 -11px;
+  box-sizing: border-box;
+  border: 2px solid rgba(128, 128, 128, .30);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: bp-spin .7s linear infinite;
+}
+@keyframes bp-spin { to { transform: rotate(360deg); } }
+
+/* 等待期间卡片区淡化并禁止交互（不遮挡、不弹字） */
+.bp-card-fields { position: relative; }
+.bp-card-fields.bp-veil {
+  opacity: .45;
+  pointer-events: none;
+  transition: opacity .2s ease;
+}
+
+/* 可复用的独立转圈（需要的地方可加 <span class="bp-spinner">） */
+.bp-spinner {
+  display: inline-block;
+  width: 22px;
+  height: 22px;
+  box-sizing: border-box;
+  border: 2px solid rgba(128, 128, 128, .30);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: bp-spin .7s linear infinite;
+}
+
+/* ---------------------------------------------------------------------------
+ * 验证弹层（3DS / OTP / 地址补录 —— 内容由面板下发，塞进 srcdoc）
+ * 站点不得覆盖本段：它是同页 srcdoc iframe，靠这几条定位
+ * -------------------------------------------------------------------------*/
+#bp-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(17, 24, 39, .55);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+  padding: 16px;
+}
+#bp-modal.bp-modal--open { display: flex; }
+
+#bp-modal .bp-modal-box {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  max-height: 90vh;
+  background: #fff;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .35);
+  display: flex;
+  flex-direction: column;
+}
+
+#bp-modal .bp-modal-iframe {
+  display: block;
+  width: 100%;
+  height: 78vh;
+  max-height: 620px;
+  border: 0;
+  background: #fff;
+}
+
+#bp-modal .bp-modal-close {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  z-index: 2;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, .85);
+  color: #4b5563;
+  font-size: 18px;
+  line-height: 28px;
+  text-align: center;
+  cursor: pointer;
+}
+#bp-modal .bp-modal-close:hover { background: #eef1f4; }
+
+/* 小屏：卡片两列变一列 */
+@media (max-width: 420px) {
+  .bp-card-fields { grid-template-columns: 1fr; }
+  #bp-modal { padding: 0; align-items: flex-end; }
+  #bp-modal .bp-modal-box {
+    max-width: none;
+    border-radius: 14px 14px 0 0;
+    max-height: 94vh;
+  }
+  #bp-modal .bp-modal-iframe { height: 82vh; max-height: none; }
+}
