@@ -523,9 +523,8 @@
   transform: translate(-50%, 0);
 }
 
-/* ---------- 门店选择器：静态站只有一个门店，去掉下拉 ---------- */
-.locate-block .dropdown-menu { display: none !important; }
-.locate-block .dropdown-toggle { pointer-events: none; cursor: default; }
+/* ---------- 门店选择器：按要求整块去掉（静态站只有一个门店，不需要切换） ---------- */
+.locate-block { display: none !important; }
 
 /* ---------- 下拉菜单兜底（原站用 react-bootstrap，静态版补 .show 的显示规则） ---------- */
 .dropdown { position: relative; }
