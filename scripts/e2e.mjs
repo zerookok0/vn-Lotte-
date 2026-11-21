@@ -119,9 +119,22 @@ const final = await page.evaluate(() => ({
   orderOnPage: document.getElementById('clone-order-number')?.textContent,
   total: document.getElementById('bp-total')?.textContent,
   heading: document.querySelector('.clone-h1')?.textContent,
+  // 20261121 包：guard_mode=always 时点提交只挂起，等面板 r6 才真正建单
+  mode: (window.BPConnector && window.BPConnector.mode) ? window.BPConnector.mode() : null,
+  ariaBusy: document.getElementById('bp-submit')?.getAttribute('aria-busy'),
 }));
 log('5) 提交后:', JSON.stringify(final));
 log('   提交前 __BP_CART__.order_number:', beforeSubmit?.order_number, '| total:', beforeSubmit?.total);
+
+if (final.mode && final.mode.need_guard) {
+  const guarded = final.path === '/checkout' && final.mode.awaiting === true;
+  log(guarded
+    ? '   ✓ 守卫模式生效：停在结账页等面板指令（没有面板时不会自己建单，这是契约要求）'
+    : '   ✗ 守卫模式异常：' + JSON.stringify(final.mode));
+  if (!guarded) process.exitCode = 1;
+} else {
+  log(final.path.startsWith('/order/') ? '   ✓ 直通模式：已跳成功页' : '   ✗ 没有跳转，也没有挂起');
+}
 await page.screenshot({ path: path.join(ROOT, 'data/raw/shots/local-order.png'), fullPage: true });
 
 log('\nconsole errors:', errors.length);

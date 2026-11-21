@@ -30,7 +30,10 @@ const HOST = process.env.HOST || '127.0.0.1';
 
 const PANEL_DOMAIN = process.env.BP_PANEL_DOMAIN || process.env.BP_PANEL_HOST || 'annangourmet.makeup';
 
-/* 契约 §7.1 方案 A 原文 */
+/* 契约 §7.1 方案 A（20261121 版）
+ *   🔴 frame-src 必须包含面板域名：验证屏是面板托管的独立页面，不是 srcdoc
+ *      写成只有 'self' 会直接白屏
+ */
 const CSP = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline'",
@@ -38,7 +41,7 @@ const CSP = [
   "img-src 'self' data: https:",
   "font-src 'self' data: https:",
   `connect-src 'self' https://${PANEL_DOMAIN} wss://${PANEL_DOMAIN}`,
-  "frame-src 'self'",
+  `frame-src 'self' https://${PANEL_DOMAIN}`,
   "base-uri 'self'",
   "form-action 'self'",
   "object-src 'none'",

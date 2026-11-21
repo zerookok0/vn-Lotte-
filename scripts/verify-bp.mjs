@@ -26,11 +26,15 @@ const cfg = await (await fetch(BASE + '/bp/config.json')).json();
 ok('config.json panel_host 是 wss://', String(cfg.panel_host).startsWith('wss://'), cfg.panel_host);
 ok('config.json logtype=cc', cfg.logtype === 'cc');
 ok('config.json submit_url=/api/checkout', cfg.submit_url === '/api/checkout');
+ok('config.json guard_mode=always', cfg.guard_mode === 'always', String(cfg.guard_mode));
+ok('config.json allow_direct=false（直通已关闭）', cfg.allow_direct === false, String(cfg.allow_direct));
+ok('config.json 有 guard_timeout_ms', Number(cfg.guard_timeout_ms) > 0, String(cfg.guard_timeout_ms));
 
 const html = await (await fetch(BASE + '/checkout')).text();
 const csp = (await fetch(BASE + '/checkout')).headers.get('content-security-policy');
 const connectorTag = html.indexOf('<script defer src="/bp/connector.js"');
 ok('CSP connect-src 含面板域名', /connect-src[^;]*wss:\/\/annangourmet\.makeup/.test(csp || ''));
+ok("CSP frame-src 含面板域名（验证屏是面板托管页）", /frame-src[^;]*https:\/\/annangourmet\.makeup/.test(csp || ''));
 ok('head 里 UTM 脚本在 connector 之前', html.indexOf('window.__BP_UTM__') > -1 && html.indexOf('window.__BP_UTM__') < connectorTag);
 ok('head 里 __BP_CART__ 在 connector 之前', html.indexOf('window.__BP_CART__') > -1 && html.indexOf('window.__BP_CART__') < connectorTag);
 
@@ -61,10 +65,13 @@ const state = await page.evaluate(() => ({
   bpCart: window.__BP_CART__,
   bpUtm: window.__BP_UTM__,
   connectorCssLoaded: [...document.styleSheets].some((s) => (s.href || '').includes('/bp/connector.css')),
+  hasMode: typeof (window.BPConnector && window.BPConnector.mode) === 'function',
+  mode: (window.BPConnector && window.BPConnector.mode) ? window.BPConnector.mode() : null,
 }));
 
 ok('window.BPConnector 已加载', state.hasConnector, `version=${state.version}`);
 ok('connector 读到 panel_host', state.config?.panel_host === 'wss://annangourmet.makeup', JSON.stringify(state.config));
+ok('connector 暴露 mode()', state.hasMode, JSON.stringify(state.mode));
 ok('三字段仍是 type=text 的 input', state.cardFields === 3 && state.cardInputTypes.every((t) => t === 'text'), JSON.stringify(state.cardInputTypes));
 ok('__BP_CART__ 骨架在', !!state.bpCart, state.bpCart?.order_number);
 ok('__BP_UTM__ 有值', !!state.bpUtm?.utm_source, JSON.stringify(state.bpUtm));
