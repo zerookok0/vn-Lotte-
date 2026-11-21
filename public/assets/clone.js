@@ -864,7 +864,7 @@
 
   /** 商品详情页：绑定「Thêm vào giỏ hàng」和数量加减 */
   function bindProductPage() {
-    var sku = (location.pathname.match(/-(\d{8,14})-p\d+/) || [])[1];
+    var sku = skuFromPath(location.pathname);
     if (!sku) return;
 
     function productData() {
@@ -935,11 +935,18 @@
     }, true);
   }
 
+  /** 从 URL 取 SKU：兼容规范格式 slug-sku-p<id> 和残缺格式 /vi-nsg/product/<sku> */
+  function skuFromPath(p) {
+    var m = String(p).match(/-(\d{8,14})-p\d+/);
+    if (m) return m[1];
+    m = String(p).match(/\/vi-nsg\/product\/(\d{8,14})\/?$/);
+    return m ? m[1] : null;
+  }
+
   /** 商品页：当当前 slug 没有真实快照（落到模板页）时，按 URL 里的 SKU 拉分片数据渲染 */
   function renderProductFromData() {
-    var m = location.pathname.match(/-(\d{8,14})-p\d+/);
-    if (!m) return;
-    var sku = m[1];
+    var sku = skuFromPath(location.pathname);
+    if (!sku) return;
 
     fetch('/data/p/' + sku.slice(0, 2) + '.json', { cache: 'force-cache' })
       .then(function (r) { return r.ok ? r.json() : null; })
