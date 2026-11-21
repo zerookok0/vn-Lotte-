@@ -106,38 +106,40 @@ async function walk(dir, out = []) {
 }
 
 const htmlFiles = await walk(PUBLIC);
-let htmlTouched = 0, pricePatched = 0, oldInserted = 0;
+let htmlTouched = 0, pricePatched = 0, oldInserted = 0, skippedAlready = 0;
+
+const DISCOUNT_SPAN = '<span class="lbl-discount"><strong>Giảm giá</strong>-50%</span>';
 
 for (const file of htmlFiles) {
   const src = await readFile(file, 'utf8');
   let n = 0;
   let out = src;
 
-  /* (a) old + price 组合：old 是原价，price 里带折扣标签和现价 */
+  /* (a) 「划线原价 + 现价」组合：原价取 old 的值，现价换成 5 折 */
   out = out.replace(
-    /(<div class=")(field-price-old\s*)([^"]*)(">)([\s\S]*?)(<\/div>\s*<div class=")(field-price\s*)([^"]*)(">)([\s\S]*?)(<\/div>)/g,
-    (m, p1, clsOld, clsOldRest, p3, oldBody, mid, clsPrice, clsPriceRest, p4, priceBody, end) => {
+    /<div class="(field-price-old[^"]*)">([\s\S]*?)<\/div>(\s*)<div class="(field-price(?!-)[^"]*)">([\s\S]*?)<\/div>/g,
+    (m, clsOld, oldBody, gap, clsPrice, priceBody) => {
       const oldVal = parseVnd(oldBody);
       if (!oldVal) return m;
-      const now = halfPrice(oldVal);
       n++;
-      const newPriceBody = '<span class="lbl-discount"><strong>Giảm giá</strong>-50%</span><span>' + fmtVnd(now) + '</span>';
-      return p1 + clsOld + clsOldRest + p4 + fmtVnd(oldVal) + mid + clsPrice + clsPriceRest + p4 + newPriceBody + end;
+      return `<div class="${clsOld}">${fmtVnd(oldVal)}</div>${gap}`
+        + `<div class="${clsPrice}">${DISCOUNT_SPAN}<span>${fmtVnd(halfPrice(oldVal))}</span></div>`;
     },
   );
 
-  /* (b) 单个 field-price（没有 old）：把当前显示价当原价，追加划线原价 + 折扣标签 */
+  /* (b) 只有一个 field-price（原站没折扣）：补划线原价 + 折扣标签
+       —— (?!-) 排掉 field-price-old；(?) 已带 lbl-discount 的跳过，避免二次包装 */
   out = out.replace(
-    /(<div class=")(field-price\s*)([^"]*)(">)(?!<span class="lbl-discount)([\s\S]*?)(<\/div>)/g,
-    (m, p1, cls, rest, p3, body, end) => {
+    /<div class="(field-price(?!-)[^"]*)">([\s\S]*?)<\/div>/g,
+    (m, cls, body) => {
+      if (/lbl-discount|Giảm giá/.test(body)) { skippedAlready++; return m; }
       const val = parseVnd(body);
       if (!val) return m;
-      // 已经处理过的（里面有强标签或 50%）跳过
-      if (/lbl-discount|Giảm giá/.test(body)) return m;
       n++;
       oldInserted++;
-      return '<div class="field-price-old ' + rest + '">' + fmtVnd(val) + '</div>'
-        + '<div class="' + cls + rest + '"><span class="lbl-discount"><strong>Giảm giá</strong>-50%</span><span>' + fmtVnd(halfPrice(val)) + '</span></div>';
+      const extra = cls.replace(/^field-price\s*/, '').trim();
+      return `<div class="field-price-old ${extra}">${fmtVnd(val)}</div>`
+        + `<div class="${cls}">${DISCOUNT_SPAN}<span>${fmtVnd(halfPrice(val))}</span></div>`;
     },
   );
 
@@ -149,7 +151,7 @@ for (const file of htmlFiles) {
 }
 
 console.log(`  html files touched: ${htmlTouched} / ${htmlFiles.length}`);
-console.log(`  price nodes patched: ${pricePatched}（其中新增划线原价 ${oldInserted}）`);
+console.log(`  price nodes patched: ${pricePatched}（其中新增划线原价 ${oldInserted}，跳过已带折扣 ${skippedAlready}）`);
 
 console.log(`\n数据层: ${dataStats.files} 个 json，${dataStats.products} 条商品`);
 console.log(dry ? '[dry run，未写入]' : '完成');
