@@ -1215,6 +1215,160 @@
     });
   }
 
+  /* ---------------- 分类页「Xem thêm」：从本地数据续载 ---------------- */
+  var PAGED = { catId: null, skus: [], shown: 0, data: null, loading: false, busy: false };
+
+  function collectRenderedSkus() {
+    var set = {};
+    var links = document.querySelectorAll('a[href*="/vi-nsg/product/"]');
+    for (var i = 0; i < links.length; i++) {
+      var m = String(links[i].getAttribute('href') || '').match(/-(\d{8,14})(?:-\d{8,14})?-p\d+/);
+      if (m) set[m[1]] = 1;
+    }
+    return set;
+  }
+
+  function priceHtml(d) {
+    var disc = '<span class="lbl-discount"><strong>Giảm giá</strong>-50%</span>';
+    return '<div class="field-price-old ">' + money(d.o) + '</div>'
+      + '<div class="field-price ">' + disc + '<span>' + money(d.p) + '</span></div>';
+  }
+
+  function money(n) {
+    return String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ' ₫';
+  }
+
+  function buildCard(template, sku, d) {
+    var el = template.cloneNode(true);
+    /* 卡片里有多个指向商品页的 <a>（图片、名称、评分…），必须全部改，否则有的还指向模板商品 */
+    var links = el.querySelectorAll('a[href*="/vi-nsg/product/"]');
+    for (var li = 0; li < links.length; li++) {
+      links[li].setAttribute('href', d.u);
+      links[li].removeAttribute('data-sku');
+    }
+    var a = el.querySelector('.field-name a');
+    if (a) { a.setAttribute('title', d.n); a.textContent = d.n; }
+    /* 图片 */
+    var imgHost = el.querySelector('.field-img .img') || el.querySelector('.field-img span') || el.querySelector('.img');
+    if (imgHost) {
+      imgHost.style.backgroundImage = "url('" + d.i + "')";
+      imgHost.style.backgroundSize = 'cover';
+      imgHost.style.backgroundPosition = 'center center';
+      imgHost.style.backgroundRepeat = 'no-repeat';
+    }
+    var innerImg = el.querySelector('.field-img img');
+    if (innerImg) { innerImg.setAttribute('src', d.i); innerImg.setAttribute('alt', d.n); }
+    /* 价格 */
+    var priceBox = el.querySelector('.field-price-old');
+    if (priceBox && priceBox.parentNode) {
+      var holder = priceBox.parentNode;
+      var keep = holder.querySelector('.field-price');
+      if (keep) keep.remove();
+      priceBox.remove();
+      holder.insertAdjacentHTML('afterbegin', priceHtml(d));
+    }
+    /* 评分 / 浏览 */
+    var score = el.querySelector('.field-score');
+    if (score) {
+      score.innerHTML = (d.r ? '<span class="lbl-rating"><span class="icon w-20"></span>' + Number(d.r).toFixed(1) + '</span>' : '')
+        + (d.w ? '<span class="lbl-viewed">' + d.w + ' Lượt xem</span>' : '');
+    }
+    /* 加购按钮带上 sku */
+    var btn = el.querySelector('.btn-cart');
+    if (btn) {
+      btn.setAttribute('data-sku', sku);
+      btn.setAttribute('data-url', d.u);
+      btn.style.display = d.s === 0 ? 'none' : '';
+    }
+    return el;
+  }
+
+  function bindCategoryLoadMore() {
+    var m = location.pathname.match(/-c(\d+)$/);
+    if (!m) return;
+    var catId = m[1];
+
+    /* 只认「带价格的商品卡」——header 搜索下拉里也有 .item，不能用它当模板 */
+    var sampleItem = document.querySelector('.item:has(.field-price)')
+      || (document.querySelector('.field-name')
+        ? document.querySelector('.field-name').closest('.item')
+        : null);
+    if (!sampleItem) return;
+
+    var sampleCol = sampleItem.closest('.col') || sampleItem.parentNode;
+    var grid = sampleCol.parentNode;
+    if (!grid) return;
+
+    var rendered = collectRenderedSkus();
+
+    fetch('/data/cat-index.json', { cache: 'force-cache' })
+      .then(function (r) { return r.json(); })
+      .then(function (idx) {
+        var list = idx[catId] || [];
+        if (list.length <= rendered_count(list, rendered)) return;
+        PAGED.catId = catId;
+        PAGED.skus = list;
+
+        var wrap = document.createElement('div');
+        wrap.className = 'clone-loadmore-wrap';
+        wrap.innerHTML = '<button type="button" class="clone-loadmore">Xem thêm sản phẩm</button>'
+          + '<div class="clone-loadmore-meta"></div>';
+        grid.parentNode.insertBefore(wrap, grid.nextSibling);
+
+        var btn = wrap.querySelector('.clone-loadmore');
+        var meta = wrap.querySelector('.clone-loadmore-meta');
+
+        function updateMeta() {
+          var shown = Object.keys(rendered).length;
+          var total = list.length;
+          meta.textContent = 'Đã hiển thị ' + Math.min(shown, total) + ' / ' + total + ' sản phẩm';
+          if (shown >= total) { btn.style.display = 'none'; }
+        }
+        updateMeta();
+
+        btn.addEventListener('click', function () {
+          if (PAGED.busy) return;
+          PAGED.busy = true;
+          btn.textContent = 'Đang tải…';
+
+          var next = [];
+          for (var i = 0; i < list.length && next.length < 50; i++) {
+            if (!rendered[list[i]]) next.push(list[i]);
+          }
+          if (!next.length) { btn.style.display = 'none'; PAGED.busy = false; return; }
+
+          (PAGED.data ? Promise.resolve(PAGED.data) : fetch('/data/card-data.json', { cache: 'force-cache' }).then(function (r) { return r.json(); }))
+            .then(function (data) {
+              PAGED.data = data;
+              var frag = document.createDocumentFragment();
+              for (var k = 0; k < next.length; k++) {
+                var sku = next[k];
+                var d = data[sku];
+                rendered[sku] = 1;
+                if (!d) continue;
+                frag.appendChild(buildCard(sampleCol, sku, d));
+              }
+              grid.appendChild(frag);
+              btn.textContent = 'Xem thêm sản phẩm';
+              PAGED.busy = false;
+              updateMeta();
+            })
+            .catch(function () {
+              btn.textContent = 'Xem thêm sản phẩm';
+              PAGED.busy = false;
+              toast('Không tải được dữ liệu');
+            });
+        });
+      })
+      .catch(function () { });
+  }
+
+  function rendered_count(list, set) {
+    var n = 0;
+    for (var i = 0; i < list.length; i++) if (set[list[i]]) n++;
+    return n;
+  }
+
   function boot() {
     loadCatalog().then(function () {
       applyMobileBanners();
@@ -1242,6 +1396,11 @@
     syncCart(items);
     renderHeaderBadge(items);
     renderPage();
+
+    /* 分类页：接上「Xem thêm」分页（从本地 cat-index + card-data 续载） */
+    if (/^\/vi-nsg\/category\//.test(location.pathname)) {
+      try { bindCategoryLoadMore(); } catch (e) { console.error('[loadmore]', e && e.stack || e); }
+    }
 
     // connector 提交成功（它 dispatch 的 window 事件）→ 记下金额、清空购物车
     window.addEventListener('bp:submitted', function (e) {
