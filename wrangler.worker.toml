@@ -4,6 +4,11 @@ main = "worker/index.js"
 compatibility_date = "2025-01-01"
 workers_dev = true
 
+# 自定义域：绕开 workers.dev 子域的 429 限流
+routes = [
+  { pattern = "lotte.lotusdiscount.top", custom_domain = true }
+]
+
 [[r2_buckets]]
 binding = "BUCKET"
 bucket_name = "vn-lotte"

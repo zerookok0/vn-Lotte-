@@ -103,6 +103,40 @@ export default {
     const url = new URL(request.url);
     const pathname = decodeURIComponent(url.pathname);
 
+    /* 静态资源读取：带格式兜底（原站商品链接单/双 SKU 混用） */
+    async function getObject(key) {
+      let obj = await env.BUCKET.get(key);
+      if (obj) return obj;
+
+      /* 兜底 1：单 SKU 链接 → 双 SKU 文件
+         foo-8935-p12.html  →  foo-8935-8935-p12.html */
+      const m1 = key.match(/^(.*?)(\d{8,14})(-p\d+)(\.html)?$/);
+      if (m1) {
+        obj = await env.BUCKET.get(`${m1[1]}${m1[2]}-${m1[2]}${m1[3]}${m1[4] || ''}`);
+        if (obj) return obj;
+      }
+
+      /* 兜底 2：双 SKU 链接 → 单 SKU 文件
+         foo-8935-8935-p12.html  →  foo-8935-p12.html */
+      const m2 = key.match(/^(.*?)(\d{8,14})-\2(-p\d+)(\.html)?$/);
+      if (m2) {
+        obj = await env.BUCKET.get(`${m2[1]}${m2[2]}${m2[3]}${m2[4] || ''}`);
+        if (obj) return obj;
+      }
+
+      /* 兜底 3：去掉尾部 -p<id> 再试（个别链接只给 slug） */
+      const m3 = key.match(/^(.*?)-p\d+(\.html)?$/);
+      if (m3) {
+        const base = m3[1];
+        const m3b = base.match(/^(.*?)(\d{8,14})(?:-\2)?$/);
+        if (m3b) {
+          obj = await env.BUCKET.get(`${m3b[1]}${m3b[2]}-${m3b[2]}-p${key.match(/-p(\d+)/)[1]}.html`);
+          if (obj) return obj;
+        }
+      }
+      return null;
+    }
+
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: BASE_HEADERS });
     }
@@ -173,10 +207,58 @@ export default {
       return new Response('method not allowed', { status: 405, headers: BASE_HEADERS });
     }
 
-    let key = resolveKey(pathname);
-    let obj = await env.BUCKET.get(key);
-    if (!obj) obj = await env.BUCKET.get(key + '.html');
-    if (!obj) obj = await env.BUCKET.get(key.replace(/\/+$/, '') + '/index.html');
+    /* 路径规范化：原站历史遗留的多种写法，统一改写到真实目录 */
+    let path2 = pathname;
+    const REWRITES = [
+      [/^\/vi-nsg\/disabled-product\/(.+)$/, '/vi-nsg/product/$1'],
+      [/^\/vi-nsg\/template-7\/(.+)$/, '/vi-nsg/tp7/$1'],
+      [/^\/vi-nsg\/tp1\/tp3\/(.+)$/, '/vi-nsg/tp3/$1'],
+      [/^\/vi-nsg\/tp1\/tp5\/(.+)$/, '/vi-nsg/tp5/$1'],
+      [/^\/vi-(?!nsg\/)[a-z]{2,4}\/(.+)$/, '/vi-nsg/$1'],   // /vi-gvp/… /vi-tbh/…
+    ];
+    for (const [re, to] of REWRITES) {
+      if (re.test(path2)) { path2 = path2.replace(re, to); break; }
+    }
+    if (path2 === '/vi-nsg' || path2 === '/vi-nsg/') path2 = '/';
+
+    /* 原站缺页兜底：这些路径原站就有，快照没抓 */
+    const REDIRECTS = {
+      '/vi-nsg/my-page/recently-viewed': '/cart',
+      '/vi-nsg/my-page': '/cart',
+    };
+    if (path2 in REDIRECTS) {
+      return Response.redirect(new URL(REDIRECTS[path2] + url.search, url.origin).toString(), 302);
+    }
+    if (path2 === '/manifest.json') {
+      return new Response(JSON.stringify({
+        name: 'LOTTE Mart Online',
+        short_name: 'LOTTE Mart',
+        start_url: '/',
+        display: 'standalone',
+        background_color: '#ffffff',
+        theme_color: '#e30019',
+        icons: [{ src: '/asset/images/icon-60-fast.png', sizes: '60x60', type: 'image/png' }],
+      }), { headers: { ...BASE_HEADERS, 'content-type': 'application/manifest+json' } });
+    }
+    /* /vi-nsg/faq/<id> → FAQ 列表 */
+    if (/^\/vi-nsg\/faq\/\d+\/?$/.test(path2)) {
+      return Response.redirect(new URL('/vi-nsg/faq' + url.search, url.origin).toString(), 302);
+    }
+    /* 专题页只在 tp3/tp5 时，若 tp1 下没有则回落到 tp3、tp5 试一次 */
+    if (path2 !== pathname) {
+      const moved = new URL(path2 + url.search, url.origin).toString();
+      const probe = await getObject(resolveKey(path2));
+      if (probe) return Response.redirect(moved, 302);
+      const alt = path2.replace('/tp1/', '/tp5/');
+      const probe2 = await getObject(resolveKey(alt));
+      if (probe2) return Response.redirect(new URL(alt + url.search, url.origin).toString(), 302);
+      return Response.redirect(new URL('/' + url.search, url.origin).toString(), 302);
+    }
+
+    let key = resolveKey(path2);
+    let obj = await getObject(key);
+    if (!obj) obj = await getObject(key + '.html');
+    if (!obj) obj = await getObject(key.replace(/\/+$/, '') + '/index.html');
 
     if (!obj) {
       if (pathname.startsWith('/api/')) return json({ ok: false, error_code: 'not_found' });
