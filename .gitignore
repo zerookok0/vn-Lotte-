@@ -18,3 +18,6 @@ Thumbs.db
 
 # 解压出来的依赖包/抓取中间件
 data/incoming/
+
+# R2 部署暂存目录（3.5GB，不入库）
+build/r2-site/

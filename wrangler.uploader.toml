@@ -1,0 +1,12 @@
+# [ltm-clone] 临时上传 Worker（用完删）
+name = "vn-lotte-uploader"
+main = "worker/uploader.js"
+compatibility_date = "2025-01-01"
+workers_dev = true
+
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "vn-lotte"
+
+[vars]
+UPLOAD_KEY = "u7K2pQx9Lm4Rn8Ts3Vw6Yz1Bc5Df0Gh"

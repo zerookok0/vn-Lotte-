@@ -1,0 +1,12 @@
+# [ltm-clone] 正式站点 Worker（R2 后端）
+name = "vn-lotte"
+main = "worker/index.js"
+compatibility_date = "2025-01-01"
+workers_dev = true
+
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "vn-lotte"
+
+[observability]
+enabled = true
