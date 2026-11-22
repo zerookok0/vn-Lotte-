@@ -768,3 +768,25 @@
   object-fit: contain !important;
   display: block;
 }
+
+/* ============ 加购按钮容器：原站是悬浮在图片右下角的小按钮，
+   .cart-box 这个容器默认铺满整个图片区，把商品卡的链接全挡住了。
+   让容器不吃点击，只让按钮自己吃。 ============ */
+.item .field-img .cart-box {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  z-index: 4;
+  width: auto !important;
+  height: auto !important;
+  pointer-events: none;
+}
+.item .field-img .cart-box .btn-cart {
+  pointer-events: auto;
+  cursor: pointer;
+}
+/* 图片链接本身要能点到 */
+.item .field-img .img,
+.item .field-img .img a {
+  pointer-events: auto;
+}
