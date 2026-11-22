@@ -732,3 +732,39 @@
   object-fit: cover;
   display: block;
 }
+
+/* ============ 商品卡角标：原站的 amlabel 促销角标是左上角小图标，
+   我没定义定位 → 它按普通流铺开并撑满高度，把商品图盖住 ============ */
+.item .field-img { position: relative; }
+.item .field-flag {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  z-index: 3;
+  pointer-events: none;
+  line-height: 0;
+}
+.item .field-flag img {
+  width: auto !important;
+  height: auto !important;
+  max-width: 56px !important;
+  max-height: 56px !important;
+  object-fit: contain !important;
+  display: block;
+}
+.item .field-tag {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 3;
+  pointer-events: none;
+  line-height: 0;
+}
+.item .field-tag img {
+  width: auto !important;
+  height: auto !important;
+  max-width: 90px !important;
+  max-height: 18px !important;
+  object-fit: contain !important;
+  display: block;
+}

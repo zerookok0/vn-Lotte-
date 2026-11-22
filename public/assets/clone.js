@@ -897,6 +897,9 @@
       var isMain = !!w.closest('.main-slide');
       w.style.transform = 'none';
       w.style.display = 'flex';
+      w.style.flexWrap = 'nowrap';        /* 不加会被外层 flex 规则带成 wrap，卡片逐个换行 */
+      w.style.flexDirection = 'row';      /* 原站某些区块是 column，横向滑动必须 row */
+      w.style.width = '100%';             /* 清掉 swiper 库算出的 3752px 固定宽度 */
       w.style.overflowX = 'auto';
       w.style.overflowY = 'hidden';
       w.style.webkitOverflowScrolling = 'touch';
